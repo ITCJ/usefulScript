@@ -110,21 +110,43 @@ fi
 # echo '' >>"$HOME/.zshrc"
 # echo 'export PATH=/root/siton-data-guoguodata/tcj/miniconda3/bin:$PATH' >>"$HOME/.zshrc"
 # echo 'export PATH=/usr/local/cuda/bin:$PATH' >>"$HOME/.zshrc"
-# echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >>"$HOME/.zshrc"
+# echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >>"$HOME/.zshrc"# 检查是否存在 .zshrc 文件
+if [ -f "$HOME/.zshrc" ]; then
+    # 检查是否已经添加了所需的环境变量
+    if ! grep -q "export PATH=/root/siton-data-guoguodata/tcj/miniconda3/bin:\$PATH" "$HOME/.zshrc"; then
+        echo 'export PATH=/root/siton-data-guoguodata/tcj/miniconda3/bin:$PATH' >> "$HOME/.zshrc"
+    fi
+    if ! grep -q "export PATH=/usr/local/cuda/bin:\$PATH" "$HOME/.zshrc"; then
+        echo 'export PATH=/usr/local/cuda/bin:$PATH' >> "$HOME/.zshrc"
+    fi
+    if ! grep -q "export LD_LIBRARY_PATH=/usr/local/cuda/lib64:\$LD_LIBRARY_PATH" "$HOME/.zshrc"; then
+        echo 'export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH' >> "$HOME/.zshrc"
+    fi
+else
+    echo ".zshrc 文件不存在，请检查您的配置。"
+fi
 
+ZSHRC_PATH="$HOME/.zshrc"
+CONDA_INIT_BLOCK="# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
 
-# # >>> conda initialize >>>
-# # !! Contents within this block are managed by 'conda init' !!
+__conda_setup=\"\$('/root/siton-data-guoguodata/tcj/miniconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)\"
+if [ \$? -eq 0 ]; then
+    eval \"\$__conda_setup\"
+else
+    if [ -f \"/root/tcj/miniconda3/etc/profile.d/conda.sh\" ]; then
+        . \"/root/tcj/miniconda3/etc/profile.d/conda.sh\"
+    else
+        export PATH=\"/root/siton-data-guoguodata/tcj/miniconda3/bin:\$PATH\"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<"
 
-# __conda_setup="$('/root/siton-data-guoguodata/tcj/miniconda3/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-# if [ $? -eq 0 ]; then
-#     eval "$__conda_setup"
-# else
-#     if [ -f "/root/tcj/miniconda3/etc/profile.d/conda.sh" ]; then
-#         . "/root/tcj/miniconda3/etc/profile.d/conda.sh"
-#     else
-#         export PATH="/root/siton-data-guoguodata/tcj/miniconda3/bin:$PATH"
-#     fi
-# fi
-# unset __conda_setup
-# # <<< conda initialize <<<
+# Check if the conda initialize block already exists in .zshrc
+if ! grep -q "# >>> conda initialize >>>" "$ZSHRC_PATH"; then
+    echo "$CONDA_INIT_BLOCK" >> "$ZSHRC_PATH"
+    echo "Added conda initialize block to $ZSHRC_PATH"
+else
+    echo "Conda initialize block already exists in $ZSHRC_PATH"
+fi
