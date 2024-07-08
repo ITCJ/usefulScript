@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+ln -s /root/siton-data-guoguodata/tcj/ /root/tcj
+
 if [[ "$1" == "--zsh" ]]; then
     INSTALL_ZSH="true"
     shift
@@ -74,6 +76,20 @@ fi
 $sudo_cmd apt-get -y update && $sudo_cmd apt-get install -y \
     ssh openssh-server gcc libtinfo-dev zlib1g-dev build-essential \
     cmake libedit-dev libxml2-dev llvm tmux wget curl git vim zsh
+
+# 配置代理
+cat > ~/.bashrc << EOF
+function proxy_on() {
+    export http_proxy=http://127.0.0.1:7899
+    export https_proxy=\$http_proxy
+    echo -e "终端代理已开启。"
+}
+
+function proxy_off(){
+    unset http_proxy https_proxy
+    echo -e "终端代理已关闭。"
+}
+EOF
 
 
 # 安装zsh
