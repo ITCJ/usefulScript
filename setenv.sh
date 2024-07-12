@@ -75,7 +75,8 @@ fi
 
 $sudo_cmd apt-get -y update && $sudo_cmd apt-get install -y \
     ssh openssh-server gcc libtinfo-dev zlib1g-dev build-essential \
-    cmake libedit-dev libxml2-dev llvm tmux wget curl git vim zsh
+    cmake libedit-dev libxml2-dev llvm tmux wget curl git vim zsh \
+    htop nvtop 
 
 # 配置代理
 cat > ~/.bashrc << EOF
@@ -149,4 +150,19 @@ if ! grep -q "# >>> conda initialize >>>" "$ZSHRC_PATH"; then
     echo "Added conda initialize block to $ZSHRC_PATH"
 else
     echo "Conda initialize block already exists in $ZSHRC_PATH"
+fi
+
+#检查是否配置HF_ENDPOINT和HF_HOME
+if [ -f ~/.zshrc ]; then
+    # 检查是否已经包含了指定的环境变量
+    if ! grep -q "HF_ENDPOINT" ~/.zshrc || ! grep -q "HF_HOME'" ~/.zshrc; then
+        # 添加环境变量到 .zshrc 文件中
+        echo "export HF_ENDPOINT=https://hf-mirror.com" >> ~/.zshrc
+        echo "export HF_HOME='/root/tcj/brainstorm_project/huggingface'" >> ~/.zshrc
+        echo "环境变量已添加到 .zshrc 文件中。"
+    else
+        echo ".zshrc 文件中已存在指定的环境变量。"
+    fi
+else
+    echo ".zshrc 文件不存在。"
 fi
