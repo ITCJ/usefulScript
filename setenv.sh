@@ -43,46 +43,46 @@ fi
 
 cd "$HOME" || exit
 
-# 换源
-# 检查是否存在备份文件
-if [ -f /etc/apt/sources.list.bak ]; then
-    echo "备份文件 /etc/apt/sources.list.bak 已存在，跳过换源操作。"
-else
-    # 备份原有的 sources.list 文件
-    cp /etc/apt/sources.list /etc/apt/sources.list.bak
+# # 换源
+# # 检查是否存在备份文件
+# if [ -f /etc/apt/sources.list.bak ]; then
+#     echo "备份文件 /etc/apt/sources.list.bak 已存在，跳过换源操作。"
+# else
+#     # 备份原有的 sources.list 文件
+#     cp /etc/apt/sources.list /etc/apt/sources.list.bak
 
-    # 写入新的源配置
-    cat <<EOF > /etc/apt/sources.list
-deb https://mirror.sjtu.edu.cn/ubuntu/ focal main restricted universe multiverse
-# deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal main restricted universe multiverse
-deb https://mirror.sjtu.edu.cn/ubuntu/ focal-updates main restricted universe multiverse
-# deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal-updates main restricted universe multiverse
-deb https://mirror.sjtu.edu.cn/ubuntu/ focal-backports main restricted universe multiverse
-# deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal-backports main restricted universe multiverse
-deb https://mirror.sjtu.edu.cn/ubuntu/ focal-security main restricted universe multiverse
-# deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal-security main restricted universe multiverse
+#     # 写入新的源配置
+#     cat <<EOF > /etc/apt/sources.list
+# deb https://mirror.sjtu.edu.cn/ubuntu/ focal main restricted universe multiverse
+# # deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal main restricted universe multiverse
+# deb https://mirror.sjtu.edu.cn/ubuntu/ focal-updates main restricted universe multiverse
+# # deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal-updates main restricted universe multiverse
+# deb https://mirror.sjtu.edu.cn/ubuntu/ focal-backports main restricted universe multiverse
+# # deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal-backports main restricted universe multiverse
+# deb https://mirror.sjtu.edu.cn/ubuntu/ focal-security main restricted universe multiverse
+# # deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal-security main restricted universe multiverse
 
-# deb https://mirror.sjtu.edu.cn/ubuntu/ focal-proposed main restricted universe multiverse
-# deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal-proposed main restricted universe multiverse
-EOF
+# # deb https://mirror.sjtu.edu.cn/ubuntu/ focal-proposed main restricted universe multiverse
+# # deb-src https://mirror.sjtu.edu.cn/ubuntu/ focal-proposed main restricted universe multiverse
+# EOF
 
-    # 更新 apt 缓存
-    apt-get update
+#     # 更新 apt 缓存
+#     apt-get update
 
-    echo "源已成功更换为上海交通大学镜像源，并已更新 apt 缓存。"
-fi
+#     echo "源已成功更换为上海交通大学镜像源，并已更新 apt 缓存。"
+# fi
 
 
-$sudo_cmd apt-get -y update && $sudo_cmd apt-get install -y \
-    ssh openssh-server gcc libtinfo-dev zlib1g-dev build-essential \
-    cmake libedit-dev libxml2-dev llvm tmux wget curl git vim zsh \
-    htop nvtop 
+# $sudo_cmd apt-get -y update && $sudo_cmd apt-get install -y \
+#     ssh openssh-server gcc libtinfo-dev zlib1g-dev build-essential \
+#     cmake libedit-dev libxml2-dev llvm tmux wget curl git vim zsh \
+#     htop nvtop 
 
 # 配置代理
 cat > ~/.bashrc << EOF
 function proxy_on() {
     export http_proxy=http://127.0.0.1:7899
-    export https_proxy=\$http_proxy
+    export https_proxy=$http_proxy
     echo -e "终端代理已开启。"
 }
 
