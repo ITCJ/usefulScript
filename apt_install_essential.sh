@@ -1,7 +1,7 @@
 
 sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list
 
-apt update && apt install -y vim git curl wget openssh-server rsync nvtop htop zsh git pip tmux
+apt update && apt install -y vim git curl wget openssh-server rsync nvtop htop zsh git pip tmux libnuma-dev lsof net-tools
 
 apt-get update && apt-get install -y openssh-server
 
@@ -33,18 +33,18 @@ cat /gaojiawei/tcj/tcj_mac_con.pub >> ~/.ssh/authorized_keys
 echo "Replacing SSH host keys..."
 rm /root/.ssh/id_rsa /root/.ssh/id_rsa.pub
 # 复制新的密钥文件
-cp /gaojiawei/server_con_keys/id_ed25519 /root/.ssh/id_ed25519_key
-cp /gaojiawei/server_con_keys/id_ed25519.pub /root/.ssh/id_ed25519_key.pub
+cp /gaojiawei/server_con_keys/id_ed25519 /root/.ssh/id_ed25519
+cp /gaojiawei/server_con_keys/id_ed25519.pub /root/.ssh/id_ed25519.pub
 
-cp /gaojiawei/server_con_keys/id_ed25519 /etc/ssh/ssh_host_ed25519_key
-cp /gaojiawei/server_con_keys/id_ed25519.pub /etc/ssh/ssh_host_ed25519_key.pub 
+cp /gaojiawei/server_con_keys/id_ed25519 /etc/ssh/ssh_host_ed25519
+cp /gaojiawei/server_con_keys/id_ed25519.pub /etc/ssh/ssh_host_ed25519.pub 
 
 # 设置正确的权限
-chmod 600 /root/.ssh/id_ed25519_key
-chmod 644 /root/.ssh/id_ed25519_key.pub
-chmod 600 /etc/ssh/id_ed25519_key
-chmod 644 /etc/ssh/id_ed25519_key.pub
-chown root:root /root/.ssh/id_ed25519_key /root/.ssh/id_ed25519_key.pub
+chmod 600 /root/.ssh/id_ed25519
+chmod 644 /root/.ssh/id_ed25519.pub
+chmod 600 /etc/ssh/ssh_host_ed25519
+chmod 644 /etc/ssh/ssh_host_ed25519.pub
+chown root:root /root/.ssh/id_ed25519 /root/.ssh/id_ed25519.pub
 echo "SSH host keys replaced successfully!"
 
 
@@ -88,13 +88,58 @@ else
     exit 1
 fi
 
+# add proxy on in zshrc/bashrc
+
+# Define proxy helper functions and append them to root's bashrc and zshrc idempotently
+proxy_functions=$(cat <<'EOF'
+proxy_on() {
+  export https_proxy="http://127.0.0.1:7899"
+  export http_proxy="http://127.0.0.1:7899"
+  export all_proxy="socks5://127.0.0.1:7899"
+  echo "proxy_on"
+}
+
+proxy_off() {
+  unset https_proxy http_proxy all_proxy
+  echo "proxy_off"
+}
+EOF
+)
+
+for rc in /root/.bashrc /root/.zshrc; do
+  if [ -f "$rc" ]; then
+    if ! grep -q "proxy_on()" "$rc"; then
+      echo "" >> "$rc"
+      echo "$proxy_functions" >> "$rc"
+      echo "Added proxy functions to $rc"
+    else
+      echo "proxy functions already present in $rc"
+    fi
+  else
+    echo "$proxy_functions" > "$rc"
+    echo "Created $rc with proxy functions"
+  fi
+done
+
 
 
 # uv ()
 pip install uv
-uv python install 3.12.12
-uv python install 3.12.11
+# uv python install 3.12.12 #faild due to network
+# uv python install 3.12.11
 
+# install latest python
+# apt-get install -y software-properties-common
+# apt-get install -y autoconf automake libtool
+
+# install nsys
+# https://docs.nvidia.com/nsight-systems/InstallationGuide/index.html
+apt update
+apt install -y --no-install-recommends gnupg
+echo "deb http://developer.download.nvidia.com/devtools/repos/ubuntu$(source /etc/lsb-release; echo "$DISTRIB_RELEASE" | tr -d .)/$(dpkg --print-architecture) /" | tee /etc/apt/sources.list.d/nvidia-devtools.list
+apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub
+apt update
+apt install nsight-systems-cli -y
 
 #time zone
 apt-get install -y tzdata
