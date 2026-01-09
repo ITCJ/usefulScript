@@ -1,7 +1,7 @@
 
 sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list
 
-apt update && apt install -y vim git curl wget openssh-server rsync nvtop htop zsh git pip tmux libnuma-dev lsof net-tools
+apt update && apt install -y vim git curl wget openssh-server rsync nvtop htop zsh git pip tmux libnuma-dev lsof net-tools iputils-ping
 
 apt-get update && apt-get install -y openssh-server
 
@@ -141,8 +141,12 @@ apt-key adv --fetch-keys http://developer.download.nvidia.com/compute/cuda/repos
 apt update
 apt install nsight-systems-cli -y
 
-#time zone
-apt-get install -y tzdata
+# time zone - install tzdata non-interactively
+export DEBIAN_FRONTEND=noninteractive
+echo "tzdata tzdata/Areas select Asia" | debconf-set-selections
+echo "tzdata tzdata/Zones/Asia select Shanghai" | debconf-set-selections
+apt-get install -y -q tzdata
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
+unset DEBIAN_FRONTEND
 
