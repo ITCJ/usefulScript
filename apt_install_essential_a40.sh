@@ -1,7 +1,7 @@
 
 sed -i 's@//.*archive.ubuntu.com@//mirrors.ustc.edu.cn@g' /etc/apt/sources.list
 
-apt update && apt install -y vim git curl wget openssh-server rsync nvtop htop zsh git pip tmux libnuma-dev lsof net-tools iputils-ping cuda-compat-13-1
+apt update && apt install -y vim git curl wget openssh-server rsync nvtop htop zsh git pip tmux libnuma-dev lsof net-tools iputils-ping
 
 apt-get update && apt-get install -y openssh-server
 
@@ -27,52 +27,43 @@ else
   exit 1
 fi
 
-cat /gaojiawei/tcj/tcj_mac_con.pub >> ~/.ssh/authorized_keys
+cat /home/cjt/tcj_mac_con.pub >> ~/.ssh/authorized_keys
 
-echo "Restoring User Keys..."
-mkdir -p /root/.ssh
-/bin/cp -f /gaojiawei/server_con_keys/id_ed25519 /root/.ssh/id_ed25519
-/bin/cp -f /gaojiawei/server_con_keys/id_ed25519.pub /root/.ssh/id_ed25519.pub
+# 替换服务器指纹密钥
+echo "Replacing SSH host keys..."
+rm /root/.ssh/id_rsa /root/.ssh/id_rsa.pub
+# 复制新的密钥文件
+cp /root/tcj/server_con_keys/id_ed25519 /root/.ssh/id_ed25519
+cp /root/tcj/server_con_keys/id_ed25519.pub /root/.ssh/id_ed25519.pub
+
+cp /root/tcj/server_con_keys/id_ed25519 /etc/ssh/ssh_host_ed25519
+cp /root/tcj/server_con_keys/id_ed25519.pub /etc/ssh/ssh_host_ed25519.pub 
+
+# 设置正确的权限
 chmod 600 /root/.ssh/id_ed25519
 chmod 644 /root/.ssh/id_ed25519.pub
-
-# 3. 替换服务器主机密钥 (决定指纹)
-echo "Restoring Host Keys..."
-/bin/cp -f /gaojiawei/server_con_keys/ssh_host_ed25519_key /etc/ssh/ssh_host_ed25519_key
-/bin/cp -f /gaojiawei/server_con_keys/ssh_host_ed25519_key.pub /etc/ssh/ssh_host_ed25519_key.pub 
-
-/bin/cp -f /gaojiawei/server_con_keys/ssh_host_rsa_key /etc/ssh/ssh_host_rsa_key
-/bin/cp -f /gaojiawei/server_con_keys/ssh_host_rsa_key.pub /etc/ssh/ssh_host_rsa_key.pub 
-
-# 设置 Host Key 的严格权限 (私钥必须是 600)
-chmod 600 /etc/ssh/ssh_host_ed25519_key
-chmod 644 /etc/ssh/ssh_host_ed25519_key.pub
-chmod 600 /etc/ssh/ssh_host_rsa_key
-chmod 644 /etc/ssh/ssh_host_rsa_key.pub
-chown root:root /etc/ssh/ssh_host_ed25519_key*
-chown root:root /etc/ssh/ssh_host_rsa_key*
-
-# 5. 重启 SSH 服务以生效
-echo "Restarting SSH service..."
-systemctl restart sshd
+chmod 600 /etc/ssh/ssh_host_ed25519
+chmod 644 /etc/ssh/ssh_host_ed25519.pub
+chown root:root /root/.ssh/id_ed25519 /root/.ssh/id_ed25519.pub
+echo "SSH host keys replaced successfully!"
 
 
 
 # oh my zsh - fully automated installation
 rm -rf /root/.oh-my-zsh
-rm -rf /gaojiawei/tcj/ohmyzsh
+rm -rf /home/cjt/ohmyzsh
 echo "Installing Oh My Zsh..."
-if [ ! -d "/gaojiawei/tcj/ohmyzsh" ]; then
+if [ ! -d "/home/cjt/ohmyzsh" ]; then
     echo "Cloning Oh My Zsh repository..."
-    git clone --depth=1 https://git.sjtu.edu.cn/sjtug/ohmyzsh.git /gaojiawei/tcj/ohmyzsh
+    git clone --depth=1 https://git.sjtu.edu.cn/sjtug/ohmyzsh.git /home/cjt/ohmyzsh
     if [ $? -ne 0 ]; then
         echo "Failed to clone Oh My Zsh repository" >&2
         exit 1
     fi
 fi
 
-if [ -d "/gaojiawei/tcj/ohmyzsh/tools" ]; then
-    cd /gaojiawei/tcj/ohmyzsh/tools
+if [ -d "/home/cjt/ohmyzsh/tools" ]; then
+    cd /home/cjt/ohmyzsh/tools
     REMOTE=https://git.sjtu.edu.cn/sjtug/ohmyzsh.git sh install.sh <<EOF
 y
 EOF
@@ -133,8 +124,33 @@ done
 
 
 # uv ()
-pip install uv -i https://mirrors.ustc.edu.cn/pypi/simple 
-uv python install 3.12.12 #faild due to network
+# pip 换源 — 配置 pip 使用清华镜像（idempotent）
+PIP_CONF_CONTENT=$(cat <<'EOF'
+[global]
+index-url = https://pypi.tuna.tsinghua.edu.cn/simple
+trusted-host = pypi.tuna.tsinghua.edu.cn
+EOF
+)
+
+# 写入系统级 pip 配置（覆盖）
+echo "$PIP_CONF_CONTENT" > /etc/pip.conf
+
+# 写入 root 与指定用户的 pip 配置（幂等）
+mkdir -p /root/.pip
+echo "$PIP_CONF_CONTENT" > /root/.pip/pip.conf
+mkdir -p /home/cjt/.pip
+echo "$PIP_CONF_CONTENT" > /home/cjt/.pip/pip.conf || true
+chown -R cjt:cjt /home/cjt/.pip 2>/dev/null || true
+
+# 如果 pip 可用，尝试使用 pip config 进行设置（容错）
+if command -v pip >/dev/null 2>&1; then
+  pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple || true
+fi
+
+# 使用镜像安装 uv（禁用缓存以避免网络错误时使用旧索引）
+pip install --no-cache-dir uv
+
+# uv python install 3.12.12 #faild due to network
 # uv python install 3.12.11
 
 # install latest python
@@ -158,6 +174,4 @@ apt-get install -y -q tzdata
 ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 unset DEBIAN_FRONTEND
-
-/gaojiawei/tcj/easytier-linux-x86_64/easytier-core --hostname hopper --config-server udp://112.124.12.70:22020/admin
 

@@ -6,6 +6,10 @@ if [[ "$1" == "--dry-run" ]]; then
     DRY_RUN=true
 fi
 
+echo "--- 📊 容器大小排行（从大到小） ---"
+sudo docker ps -a -s --format '{{.ID}}\t{{.Names}}\t{{.Size}}' | sort -h -r -k3
+echo ""
+
 echo "--- 📋 状态包含 '2 months ago' 或 '3 months ago' 的已停止容器：---"
 
 # 1. 筛选并显示 ID、状态、镜像和名称
