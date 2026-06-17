@@ -159,5 +159,5 @@ ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 echo "Asia/Shanghai" > /etc/timezone
 unset DEBIAN_FRONTEND
 
-nohup /gaojiawei/tcj/easytier-linux-x86_64/easytier-core --hostname hopper1 --machine-id d5f5e420-3b16-83b9-4b94-002e0682b139 --config-server udp://112.124.12.70:22020/admin >/dev/null 2>&1 &
+nohup /gaojiawei/tcj/easytier-linux-x86_64/easytier-core --hostname hopper2 --machine-id hopper2 --config-server udp://112.124.12.70:22020/admin >/dev/null 2>&1 &
 
