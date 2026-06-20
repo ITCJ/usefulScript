@@ -7,7 +7,7 @@ set -euo pipefail
 
 REPO_DIR=${REPO_DIR:-/Users/tcj/Sync/prj_hw/sglang-ascend}
 HOST=${HOST:-127.0.0.1}
-PORT=${PORT:-30000}
+PORT=${PORT:-6699}
 BASE_URL=${BASE_URL:-}
 MODEL_PATH=${MODEL_PATH:-None}
 NUM_EXAMPLES=${NUM_EXAMPLES:-200}
