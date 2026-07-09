@@ -1,8 +1,8 @@
 #!/bin/bash
 
 SSH_PORT="${SSH_PORT:-2223}"
-
-apt-get update && apt-get install -y openssh-server
+# apt-get update
+apt-get install -y openssh-server
 
 # 检查是否以root用户运行脚本
 if [ "$(id -u)" -ne 0 ]; then
