@@ -9,6 +9,7 @@ BACKEND="${BACKEND:-sglang}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-6699}"
 DATASET_NAME="${DATASET_NAME:-random}"
+RANDOM_INPUT_LEN="${RANDOM_INPUT_LEN:-32768}"
 RANDOM_OUTPUT_LEN="${RANDOM_OUTPUT_LEN:-100}"
 RANDOM_RANGE_RATIO="${RANDOM_RANGE_RATIO:-1}"
 START_CONCURRENCY="${START_CONCURRENCY:-1}"
@@ -32,6 +33,8 @@ echo "backend=${BACKEND}"
 echo "host=${HOST}"
 echo "port=${PORT}"
 echo "concurrency=${START_CONCURRENCY}..${END_CONCURRENCY}"
+echo "random_input_len=${RANDOM_INPUT_LEN}"
+echo "random_output_len=${RANDOM_OUTPUT_LEN}"
 echo "server_log=${SERVER_LOG}"
 echo "run_log=${RUN_LOG}"
 echo "result_dir=${RESULT_DIR}"
@@ -53,6 +56,7 @@ for concurrency in $(seq "${START_CONCURRENCY}" "${END_CONCURRENCY}"); do
     --port "${PORT}" \
     --max-concurrency "${concurrency}" \
     --dataset-name "${DATASET_NAME}" \
+    --random-input-len "${RANDOM_INPUT_LEN}" \
     --random-output-len "${RANDOM_OUTPUT_LEN}" \
     --num-prompts "${num_prompts}" \
     --random-range-ratio "${RANDOM_RANGE_RATIO}" \
