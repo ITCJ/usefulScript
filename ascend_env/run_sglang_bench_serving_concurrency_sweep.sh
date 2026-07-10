@@ -17,9 +17,9 @@ END_CONCURRENCY="${END_CONCURRENCY:-32}"
 LOG_DIR="${LOG_DIR:-/home/tcj/sglang-ascend/bench_serving_sweep_logs}"
 CONTINUE_ON_ERROR="${CONTINUE_ON_ERROR:-0}"
 READY_CHECK_TIMEOUT_SEC="${READY_CHECK_TIMEOUT_SEC:-6000}"
-RESTART_SERVER_EACH_RUN="${RESTART_SERVER_EACH_RUN:-0}"
+RESTART_SERVER_EACH_RUN="${RESTART_SERVER_EACH_RUN:-1}"
 SERVER_START_SCRIPT="${SERVER_START_SCRIPT:-/home/tcj/script/start.sh}"
-SERVER_RESTART_SLEEP_SEC="${SERVER_RESTART_SLEEP_SEC:-5}"
+SERVER_STOP_TIMEOUT_SEC="${SERVER_STOP_TIMEOUT_SEC:-120}"
 SERVER_READY_PATH="${SERVER_READY_PATH:-/v1/models}"
 
 mkdir -p "${LOG_DIR}"
@@ -39,6 +39,7 @@ echo "random_output_len=${RANDOM_OUTPUT_LEN}"
 echo "ready_check_timeout_sec=${READY_CHECK_TIMEOUT_SEC}"
 echo "restart_server_each_run=${RESTART_SERVER_EACH_RUN}"
 echo "server_start_script=${SERVER_START_SCRIPT}"
+echo "server_stop_timeout_sec=${SERVER_STOP_TIMEOUT_SEC}"
 echo "server_ready_path=${SERVER_READY_PATH}"
 echo "run_dir=${RUN_DIR}"
 
@@ -76,6 +77,33 @@ wait_for_server_ready() {
   done
 }
 
+server_processes_still_running() {
+  pgrep -f "sglang.*launch_server" >/dev/null 2>&1 || pgrep -f "sglang::" >/dev/null 2>&1
+}
+
+wait_for_server_processes_gone() {
+  local start_time
+  local elapsed
+
+  start_time="$(date +%s)"
+  log_msg "[$(date '+%F %T')] waiting up to ${SERVER_STOP_TIMEOUT_SEC}s for old SGLang processes to exit"
+
+  while server_processes_still_running; do
+    elapsed=$(( $(date +%s) - start_time ))
+    if (( elapsed >= SERVER_STOP_TIMEOUT_SEC )); then
+      log_msg "[$(date '+%F %T')] old SGLang processes still exist after ${SERVER_STOP_TIMEOUT_SEC}s"
+      pgrep -af "sglang.*launch_server" | tee -a "${BENCH_LOG}" || true
+      pgrep -af "sglang::" | tee -a "${BENCH_LOG}" || true
+      return 1
+    fi
+
+    sleep 1
+  done
+
+  elapsed=$(( $(date +%s) - start_time ))
+  log_msg "[$(date '+%F %T')] old SGLang processes exited after ${elapsed}s"
+}
+
 restart_server_if_needed() {
   local concurrency="$1"
   local server_log="$2"
@@ -90,7 +118,7 @@ restart_server_if_needed() {
 
   pkill -f "sglang.*launch_server" || true
   pkill -f "sglang::" || true
-  sleep "${SERVER_RESTART_SLEEP_SEC}"
+  wait_for_server_processes_gone
 
   if [[ ! -x "${SERVER_START_SCRIPT}" ]]; then
     log_msg "Server start script is not executable: ${SERVER_START_SCRIPT}"
