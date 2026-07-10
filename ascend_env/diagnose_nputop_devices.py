@@ -3,14 +3,9 @@
 
 from __future__ import annotations
 
+import inspect
 import subprocess
-import sys
 import time
-from pathlib import Path
-
-
-REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPOSITORY_ROOT))
 
 
 def print_result(name: str, value: object) -> None:
@@ -27,11 +22,13 @@ def main() -> int:
         print_result("import_error_type", type(ex).__name__)
         return 2
 
+    refresh = getattr(libascend, "_refresh_cache", None)
+    refresh_source = inspect.getsource(refresh) if refresh is not None else ""
+
     print_result("import_ok", True)
     print_result("nputop_version", getattr(nputop, "__version__", "unknown"))
-    module_path = Path(nputop.__file__).resolve()
-    print_result("loaded_from_cloned_repository", REPOSITORY_ROOT in module_path.parents)
-    print_result("has_resilient_refresh", hasattr(libascend, "_refresh_cache"))
+    print_result("has_resilient_refresh", refresh is not None)
+    print_result("has_patch2_parser", "pending_device" in refresh_source)
 
     started_at = time.monotonic()
     try:
@@ -39,7 +36,7 @@ def main() -> int:
             ["npu-smi", "info"],
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=6,
         )
     except subprocess.TimeoutExpired:
         print_result("npu_smi_timeout", True)
@@ -60,20 +57,20 @@ def main() -> int:
 
     device_pattern = getattr(libascend, "_RE_L1", None)
     detail_pattern = getattr(libascend, "_RE_L2", None)
-    device_matches = (
-        sum(bool(device_pattern.match(line.strip())) for line in lines)
-        if device_pattern is not None
-        else "unsupported"
+    process_pattern = getattr(libascend, "_RE_P", None)
+    patterns = (
+        ("device_line_matches", device_pattern),
+        ("detail_line_matches", detail_pattern),
+        ("process_line_matches", process_pattern),
     )
-    detail_matches = (
-        sum(bool(detail_pattern.match(line.strip())) for line in lines)
-        if detail_pattern is not None
-        else "unsupported"
-    )
-    print_result("device_line_matches", device_matches)
-    print_result("detail_line_matches", detail_matches)
+    for name, pattern in patterns:
+        matches = (
+            sum(bool(pattern.match(line.strip())) for line in lines)
+            if pattern is not None
+            else "unsupported"
+        )
+        print_result(name, matches)
 
-    refresh = getattr(libascend, "_refresh_cache", None)
     if refresh is None:
         print_result("refresh_ok", "unsupported_old_version")
         return 4
