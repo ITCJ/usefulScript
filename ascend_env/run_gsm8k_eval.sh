@@ -5,6 +5,8 @@ set -euo pipefail
 # Override variables from the environment, e.g.:
 #   MODEL_PATH=/path/to/model NUM_EXAMPLES=1319 ./run_gsm8k_eval.sh
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
 REPO_DIR=${REPO_DIR:-/Users/tcj/Sync/prj_hw/sglang-ascend}
 HOST=${HOST:-127.0.0.1}
 PORT=${PORT:-6699}
@@ -17,7 +19,9 @@ MAX_TOKENS=${MAX_TOKENS:-2048}
 TEMPERATURE=${TEMPERATURE:-0.0}
 TOP_P=${TOP_P:-1.0}
 API=${API:-chat}
-GSM8K_DATA_PATH=${GSM8K_DATA_PATH:-}
+# Bundled from the official OpenAI GSM8K repository (MIT license):
+# https://github.com/openai/grade-school-math
+GSM8K_DATA_PATH=${GSM8K_DATA_PATH:-${SCRIPT_DIR}/gsm8k_test.jsonl}
 OUTPUT_DIR=${OUTPUT_DIR:-${REPO_DIR}/benchmark_results}
 LOG_FILE=${LOG_FILE:-${OUTPUT_DIR}/gsm8k_$(date +%Y%m%d_%H%M%S).log}
 
