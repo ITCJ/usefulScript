@@ -16,7 +16,9 @@ echo "📅 删除截止时间点: $(date -d @$TWO_MONTHS_AGO_TIMESTAMP "+%Y-%m-%
 echo "--------------------------------------------------------"
 
 IMAGES_TO_DELETE_IDS=()
-IMAGES_TO_DELETE_INFOS=()
+IMAGES_TO_DELETE_REFS=()
+IMAGES_TO_DELETE_SIZES=()
+IMAGES_TO_DELETE_CREATED_AT=()
 
 # --- 2. 遍历所有镜像 ---
 while IFS='#' read -r IMAGE_ID REPO TAG SIZE CREATED_AT_RAW; do
@@ -35,8 +37,24 @@ while IFS='#' read -r IMAGE_ID REPO TAG SIZE CREATED_AT_RAW; do
     if [ "$IMAGE_TIMESTAMP" -lt "$TWO_MONTHS_AGO_TIMESTAMP" ]; then
         CONTAINER_COUNT=$(docker ps -a -q --filter ancestor="$IMAGE_ID" | wc -l)
         if [ "$CONTAINER_COUNT" -eq 0 ]; then
-            IMAGES_TO_DELETE_IDS+=("$IMAGE_ID")
-            IMAGES_TO_DELETE_INFOS+=("ID: $IMAGE_ID | $REPO:$TAG | 大小: $SIZE | 创建于: $CLEAN_TIME")
+            IMAGE_REF="$REPO:$TAG"
+            INDEX=-1
+            for EXISTING_INDEX in "${!IMAGES_TO_DELETE_IDS[@]}"; do
+                if [ "${IMAGES_TO_DELETE_IDS[$EXISTING_INDEX]}" = "$IMAGE_ID" ]; then
+                    INDEX=$EXISTING_INDEX
+                    break
+                fi
+            done
+
+            if [ "$INDEX" -ge 0 ]; then
+                IMAGES_TO_DELETE_REFS[$INDEX]+=", $IMAGE_REF"
+            else
+                INDEX=${#IMAGES_TO_DELETE_IDS[@]}
+                IMAGES_TO_DELETE_IDS+=("$IMAGE_ID")
+                IMAGES_TO_DELETE_REFS+=("$IMAGE_REF")
+                IMAGES_TO_DELETE_SIZES+=("$SIZE")
+                IMAGES_TO_DELETE_CREATED_AT+=("$CLEAN_TIME")
+            fi
         fi
     fi
 done < <(docker images --format "{{.ID}}#{{.Repository}}#{{.Tag}}#{{.Size}}#{{.CreatedAt}}")
@@ -50,11 +68,11 @@ fi
 # --- 7. 打印列表 ---
 echo -e "\n📋 以下镜像将被清理 (无容器引用 且 >2个月)："
 echo "--------------------------------------------------------"
-for info in "${IMAGES_TO_DELETE_INFOS[@]}"; do
-    echo "$info"
+for INDEX in "${!IMAGES_TO_DELETE_IDS[@]}"; do
+    echo "ID: ${IMAGES_TO_DELETE_IDS[$INDEX]} | 标签: ${IMAGES_TO_DELETE_REFS[$INDEX]} | 大小: ${IMAGES_TO_DELETE_SIZES[$INDEX]} | 创建于: ${IMAGES_TO_DELETE_CREATED_AT[$INDEX]}"
 done
 echo "--------------------------------------------------------"
-echo "共计: ${#IMAGES_TO_DELETE_IDS[@]} 个镜像"
+echo "共计: ${#IMAGES_TO_DELETE_IDS[@]} 个唯一镜像"
 
 # --- 8. 执行删除逻辑 (仅在非 Dry Run 模式下) ---
 if [ "$DRY_RUN" = true ]; then
@@ -71,7 +89,8 @@ case "$response" in
         # ... (此处省略原有删除循环代码，保持不变) ...
         for ID in "${IMAGES_TO_DELETE_IDS[@]}"; do
             echo -n "正在删除 $ID ... "
-            OUTPUT=$(docker rmi "$ID" 2>&1)
+            # 候选镜像已确认无容器引用；--force 用于一次删除指向同一 ID 的多个标签。
+            OUTPUT=$(docker rmi --force "$ID" 2>&1)
             if [ $? -eq 0 ]; then echo "✅ 成功"; else echo "❌ 失败: $OUTPUT"; fi
         done
         echo "--------------------------------------------------------"

@@ -7,7 +7,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-REPO_DIR=${REPO_DIR:-/Users/tcj/Sync/prj_hw/sglang-ascend}
+REPO_DIR=${REPO_DIR:-${SCRIPT_DIR}}
 HOST=${HOST:-127.0.0.1}
 PORT=${PORT:-6699}
 BASE_URL=${BASE_URL:-}
@@ -23,9 +23,11 @@ API=${API:-chat}
 # https://github.com/openai/grade-school-math
 GSM8K_DATA_PATH=${GSM8K_DATA_PATH:-${SCRIPT_DIR}/gsm8k_test.jsonl}
 OUTPUT_DIR=${OUTPUT_DIR:-${REPO_DIR}/benchmark_results}
-LOG_FILE=${LOG_FILE:-${OUTPUT_DIR}/gsm8k_$(date +%Y%m%d_%H%M%S).log}
+RUN_TIMESTAMP=${RUN_TIMESTAMP:-$(date +%Y%m%d_%H%M%S)}
+RUN_DIR=${RUN_DIR:-${OUTPUT_DIR}/gsm8k_${RUN_TIMESTAMP}}
+LOG_FILE=${LOG_FILE:-${RUN_DIR}/gsm8k.log}
 
-mkdir -p "${OUTPUT_DIR}"
+mkdir -p "${RUN_DIR}"
 cd "${REPO_DIR}"
 
 export PYTHONPATH="${REPO_DIR}/python${PYTHONPATH:+:${PYTHONPATH}}"
@@ -58,6 +60,19 @@ cmd+=("$@")
 
 printf 'Running: '
 printf '%q ' "${cmd[@]}"
-printf '\nLog: %s\n' "${LOG_FILE}"
+printf '\nOutput directory: %s\nLog: %s\n' "${RUN_DIR}" "${LOG_FILE}"
 
 "${cmd[@]}" 2>&1 | tee "${LOG_FILE}"
+
+# run_eval currently writes its HTML and JSON reports to /tmp. Read the exact
+# paths it reported and collect them alongside this run's log.
+while IFS= read -r artifact; do
+  if [[ -f "${artifact}" ]]; then
+    mv -- "${artifact}" "${RUN_DIR}/"
+  fi
+done < <(sed -n \
+  -e 's/^Writing report to //p' \
+  -e 's/^Writing results to //p' \
+  "${LOG_FILE}")
+
+printf 'Artifacts saved in: %s\n' "${RUN_DIR}"
