@@ -27,6 +27,7 @@ run_one_config() {
   local config_name
   local run_dir
   local status
+  shift 3
 
   if [[ "${cuda_graph_mode}" == "graph" ]]; then
     config_name="cuda_graph_bs${bs}"

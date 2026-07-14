@@ -10,7 +10,7 @@ REPO_DIR="${REPO_DIR:-/home/tcj/sglang-ascend}"
 HOST="${HOST:-127.0.0.1}"
 PORT="${PORT:-6699}"
 BASE_URL="${BASE_URL:-}"
-MODEL_PATH="${MODEL_PATH:-None}"
+MODEL_PATH="${MODEL_PATH:-}"
 NUM_EXAMPLES="${NUM_EXAMPLES:-200}"
 NUM_THREADS="${NUM_THREADS:-128}"
 NUM_SHOTS="${NUM_SHOTS:-5}"
@@ -142,7 +142,6 @@ export OPENAI_API_KEY="${OPENAI_API_KEY:-EMPTY}"
 cmd=(
   python3 -m sglang.test.run_eval
   --eval-name gsm8k
-  --model "${MODEL_PATH}"
   --num-examples "${NUM_EXAMPLES}"
   --num-threads "${NUM_THREADS}"
   --num-shots "${NUM_SHOTS}"
@@ -151,6 +150,10 @@ cmd=(
   --top-p "${TOP_P}"
   --api "${API}"
 )
+
+if [[ -n "${MODEL_PATH}" ]]; then
+  cmd+=(--model "${MODEL_PATH}")
+fi
 
 if [[ -n "${BASE_URL}" ]]; then
   cmd+=(--base-url "${BASE_URL}")
