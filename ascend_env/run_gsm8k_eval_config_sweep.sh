@@ -8,10 +8,18 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 LOG_DIR="${LOG_DIR:-/home/tcj/sglang-ascend/gsm8k_eval_config_sweep_logs}"
 RUN_TS="$(date +%Y%m%d_%H%M%S)"
-SWEEP_DIR="${SWEEP_DIR:-${LOG_DIR}/sweep_${RUN_TS}}"
 NUM_ITERS="${NUM_ITERS:-3}"
-CONTINUE_ON_ERROR="${CONTINUE_ON_ERROR:-1}"
+RESUME="${RESUME:-1}"
 EVAL_SCRIPT="${EVAL_SCRIPT:-${SCRIPT_DIR}/run_gsm8k_eval_with_server_restart.sh}"
+
+mkdir -p "${LOG_DIR}"
+
+if [[ -z "${SWEEP_DIR:-}" && "${RESUME}" == "1" ]]; then
+  latest_sweep_dir="$(find "${LOG_DIR}" -maxdepth 1 -type d -name 'sweep_*' 2>/dev/null | sort | tail -n 1)"
+  SWEEP_DIR="${latest_sweep_dir:-${LOG_DIR}/sweep_${RUN_TS}}"
+else
+  SWEEP_DIR="${SWEEP_DIR:-${LOG_DIR}/sweep_${RUN_TS}}"
+fi
 
 mkdir -p "${SWEEP_DIR}"
 SWEEP_LOG="${SWEEP_DIR}/sweep.log"
@@ -19,6 +27,26 @@ STATUS_FILE="${SWEEP_DIR}/status.tsv"
 
 log_msg() {
   echo "$*" | tee -a "${SWEEP_LOG}"
+}
+
+is_case_complete() {
+  local run_dir="$1"
+
+  [[ "${RESUME}" == "1" ]] || return 1
+
+  if [[ -f "${run_dir}/.complete" ]]; then
+    return 0
+  fi
+
+  if [[ -f "${run_dir}/exit_status" ]] && [[ "$(cat "${run_dir}/exit_status")" == "0" ]]; then
+    return 0
+  fi
+
+  if [[ -f "${run_dir}/eval.log" ]] && grep -q "GSM8K eval exit_status=0" "${run_dir}/eval.log"; then
+    return 0
+  fi
+
+  return 1
 }
 
 run_one_config() {
@@ -51,6 +79,13 @@ run_one_config() {
   log_msg "===== GSM8K_CONFIG_SWEEP $(date '+%F %T') config=${config_name} iter=${iter}/${NUM_ITERS} ====="
   log_msg "run_dir=${run_dir}"
 
+  if is_case_complete "${run_dir}"; then
+    log_msg "[$(date '+%F %T')] skip completed config=${config_name} iter=${iter}"
+    printf '%s\t%s\t%s\t%s\t%s\n' \
+      "$(date '+%F %T')" "${config_name}" "${iter}" "SKIPPED" "${run_dir}" >> "${STATUS_FILE}"
+    return 0
+  fi
+
   set +e
   SERVER_CONFIG_NAME="${config_name}" \
     CUDA_GRAPH_MODE="${cuda_graph_mode}" \
@@ -64,13 +99,16 @@ run_one_config() {
   set -e
 
   log_msg "[$(date '+%F %T')] config=${config_name} iter=${iter} exit_status=${status}"
+  echo "${status}" > "${run_dir}/exit_status"
+  if [[ "${status}" -eq 0 ]]; then
+    touch "${run_dir}/.complete"
+  else
+    rm -f "${run_dir}/.complete"
+  fi
+
   printf '%s\t%s\t%s\t%s\t%s\n' \
     "$(date '+%F %T')" "${config_name}" "${iter}" "${status}" "${run_dir}" >> "${STATUS_FILE}"
 
-  if [[ "${status}" -ne 0 && "${CONTINUE_ON_ERROR}" != "1" ]]; then
-    log_msg "Stop on failure. Set CONTINUE_ON_ERROR=1 to keep sweeping after failures."
-    exit "${status}"
-  fi
 }
 
 init_case_dirs() {
@@ -80,7 +118,9 @@ init_case_dirs() {
   local config_name
   local run_dir
 
-  printf 'time\tconfig\titer\texit_status\trun_dir\n' > "${STATUS_FILE}"
+  if [[ ! -f "${STATUS_FILE}" ]]; then
+    printf 'time\tconfig\titer\texit_status\trun_dir\n' > "${STATUS_FILE}"
+  fi
 
   for bs in 1 2; do
     for cuda_graph_mode in graph eager; do
@@ -110,7 +150,7 @@ init_case_dirs
 log_msg "[$(date '+%F %T')] GSM8K config sweep started"
 log_msg "sweep_dir=${SWEEP_DIR}"
 log_msg "num_iters=${NUM_ITERS}"
-log_msg "continue_on_error=${CONTINUE_ON_ERROR}"
+log_msg "resume=${RESUME}"
 log_msg "eval_script=${EVAL_SCRIPT}"
 log_msg "configs=(cuda_graph,eager) x bs=(1,2)"
 
