@@ -10,15 +10,26 @@ LOG_DIR="${LOG_DIR:-/home/tcj/sglang-ascend/gsm8k_eval_config_sweep_logs}"
 RUN_TS="$(date +%Y%m%d_%H%M%S)"
 NUM_ITERS="${NUM_ITERS:-3}"
 RESUME="${RESUME:-1}"
+SWEEP_LABEL="${SWEEP_LABEL:-}"
 EVAL_SCRIPT="${EVAL_SCRIPT:-${SCRIPT_DIR}/run_gsm8k_eval_with_server_restart.sh}"
 
 mkdir -p "${LOG_DIR}"
 
-if [[ -z "${SWEEP_DIR:-}" && "${RESUME}" == "1" ]]; then
-  latest_sweep_dir="$(find "${LOG_DIR}" -maxdepth 1 -type d -name 'sweep_*' 2>/dev/null | sort | tail -n 1)"
-  SWEEP_DIR="${latest_sweep_dir:-${LOG_DIR}/sweep_${RUN_TS}}"
+if [[ -n "${SWEEP_LABEL}" ]]; then
+  if [[ ! "${SWEEP_LABEL}" =~ ^[[:alnum:]_.-]+$ ]]; then
+    echo "Invalid SWEEP_LABEL=${SWEEP_LABEL}; use only letters, digits, '.', '_' or '-'." >&2
+    exit 2
+  fi
+  SWEEP_PREFIX="sweep_${SWEEP_LABEL}"
 else
-  SWEEP_DIR="${SWEEP_DIR:-${LOG_DIR}/sweep_${RUN_TS}}"
+  SWEEP_PREFIX="sweep"
+fi
+
+if [[ -z "${SWEEP_DIR:-}" && "${RESUME}" == "1" ]]; then
+  latest_sweep_dir="$(find "${LOG_DIR}" -maxdepth 1 -type d -name "${SWEEP_PREFIX}_*" 2>/dev/null | sort | tail -n 1)"
+  SWEEP_DIR="${latest_sweep_dir:-${LOG_DIR}/${SWEEP_PREFIX}_${RUN_TS}}"
+else
+  SWEEP_DIR="${SWEEP_DIR:-${LOG_DIR}/${SWEEP_PREFIX}_${RUN_TS}}"
 fi
 
 mkdir -p "${SWEEP_DIR}"
@@ -149,6 +160,7 @@ init_case_dirs
 
 log_msg "[$(date '+%F %T')] GSM8K config sweep started"
 log_msg "sweep_dir=${SWEEP_DIR}"
+log_msg "sweep_label=${SWEEP_LABEL}"
 log_msg "num_iters=${NUM_ITERS}"
 log_msg "resume=${RESUME}"
 log_msg "eval_script=${EVAL_SCRIPT}"
