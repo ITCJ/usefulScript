@@ -75,7 +75,6 @@ cmd=(
     --chunked-prefill-size -1
     --enable-dp-attention --dp-size 1 --enable-dp-lm-head
     --reasoning-parser deepseek-v3
-    --tool-call-parser deepseekv32
     --dtype bfloat16
 )
 
@@ -116,5 +115,4 @@ printf '\n'
 #     --enable-dp-attention --dp-size 1 --enable-dp-lm-head \
 #     --cuda-graph-bs 32 \
 #     --reasoning-parser deepseek-v3 \
-#     --tool-call-parser deepseekv32 \
 #     --dtype bfloat16
