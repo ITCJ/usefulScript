@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Sweep GSM8K accuracy across server runtime configs:
-#   CUDA graph on/off x max-running-requests BS 1/2, repeated NUM_ITERS times.
+# Repeat GSM8K accuracy across selected server runtime configs.
+# Debug defaults to eager BS=1; override with, for example,
+# SWEEP_CONFIGS="graph:1 eager:1 graph:2 eager:2".
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
@@ -11,7 +12,21 @@ RUN_TS="$(date +%Y%m%d_%H%M%S)"
 NUM_ITERS="${NUM_ITERS:-3}"
 RESUME="${RESUME:-1}"
 SWEEP_LABEL="${SWEEP_LABEL:-}"
+SWEEP_CONFIGS="${SWEEP_CONFIGS:-eager:1}"
 EVAL_SCRIPT="${EVAL_SCRIPT:-${SCRIPT_DIR}/run_gsm8k_eval_with_server_restart.sh}"
+
+read -r -a SWEEP_CONFIG_LIST <<< "${SWEEP_CONFIGS}"
+if [[ "${#SWEEP_CONFIG_LIST[@]}" -eq 0 ]]; then
+  echo "SWEEP_CONFIGS must contain at least one mode:batch-size entry." >&2
+  exit 2
+fi
+
+for config in "${SWEEP_CONFIG_LIST[@]}"; do
+  if [[ ! "${config}" =~ ^(graph|eager):[1-9][0-9]*$ ]]; then
+    echo "Invalid sweep config '${config}'; expected graph:N or eager:N." >&2
+    exit 2
+  fi
+done
 
 mkdir -p "${LOG_DIR}"
 
@@ -123,6 +138,7 @@ run_one_config() {
 }
 
 init_case_dirs() {
+  local config
   local bs
   local cuda_graph_mode
   local iter
@@ -133,25 +149,25 @@ init_case_dirs() {
     printf 'time\tconfig\titer\texit_status\trun_dir\n' > "${STATUS_FILE}"
   fi
 
-  for bs in 1 2; do
-    for cuda_graph_mode in graph eager; do
-      if [[ "${cuda_graph_mode}" == "graph" ]]; then
-        config_name="cuda_graph_bs${bs}"
-      else
-        config_name="eager_bs${bs}"
-      fi
+  for config in "${SWEEP_CONFIG_LIST[@]}"; do
+    cuda_graph_mode="${config%%:*}"
+    bs="${config##*:}"
+    if [[ "${cuda_graph_mode}" == "graph" ]]; then
+      config_name="cuda_graph_bs${bs}"
+    else
+      config_name="eager_bs${bs}"
+    fi
 
-      for iter in $(seq 1 "${NUM_ITERS}"); do
-        run_dir="${SWEEP_DIR}/${config_name}/iter_${iter}"
-        mkdir -p "${run_dir}"
-        {
-          echo "SERVER_CONFIG_NAME=${config_name}"
-          echo "CUDA_GRAPH_MODE=${cuda_graph_mode}"
-          echo "CUDA_GRAPH_BS=${bs}"
-          echo "MAX_RUNNING_REQUESTS=${bs}"
-          echo "ITERATION=${iter}"
-        } > "${run_dir}/config.env"
-      done
+    for iter in $(seq 1 "${NUM_ITERS}"); do
+      run_dir="${SWEEP_DIR}/${config_name}/iter_${iter}"
+      mkdir -p "${run_dir}"
+      {
+        echo "SERVER_CONFIG_NAME=${config_name}"
+        echo "CUDA_GRAPH_MODE=${cuda_graph_mode}"
+        echo "CUDA_GRAPH_BS=${bs}"
+        echo "MAX_RUNNING_REQUESTS=${bs}"
+        echo "ITERATION=${iter}"
+      } > "${run_dir}/config.env"
     done
   done
 }
@@ -164,9 +180,9 @@ log_msg "sweep_label=${SWEEP_LABEL}"
 log_msg "num_iters=${NUM_ITERS}"
 log_msg "resume=${RESUME}"
 log_msg "eval_script=${EVAL_SCRIPT}"
-log_msg "configs=(cuda_graph,eager) x bs=(1,2)"
+log_msg "configs=${SWEEP_CONFIG_LIST[*]}"
 
-for config in "graph:1" "eager:1" "graph:2" "eager:2"; do
+for config in "${SWEEP_CONFIG_LIST[@]}"; do
   cuda_graph_mode="${config%%:*}"
   bs="${config##*:}"
   for iter in $(seq 1 "${NUM_ITERS}"); do

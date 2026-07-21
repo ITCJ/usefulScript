@@ -34,8 +34,41 @@ SERVER_STOP_TIMEOUT_SEC="${SERVER_STOP_TIMEOUT_SEC:-120}"
 READY_CHECK_TIMEOUT_SEC="${READY_CHECK_TIMEOUT_SEC:-6000}"
 SERVER_READY_PATH="${SERVER_READY_PATH:-/v1/models}"
 
+TENSOR_DUMP="${TENSOR_DUMP:-0}"
+TENSOR_DUMP_DIR="${TENSOR_DUMP_DIR:-${RUN_DIR}/tensor_dump}"
+TENSOR_DUMP_LAYERS="${TENSOR_DUMP_LAYERS:-all}"
+TENSOR_DUMP_LEVEL="${TENSOR_DUMP_LEVEL:-minimal}"
+TENSOR_DUMP_START_CALL="${TENSOR_DUMP_START_CALL:-0}"
+TENSOR_DUMP_MAX_CALLS="${TENSOR_DUMP_MAX_CALLS:-0}"
+
 mkdir -p "${RUN_DIR}"
 export MAX_RUNNING_REQUESTS
+
+case "${TENSOR_DUMP}" in
+  0)
+    unset SGLANG_NPU_SPARSE_DEBUG_DIR
+    ;;
+  1)
+    if [[ "${TENSOR_DUMP_LEVEL}" != "minimal" && "${TENSOR_DUMP_LEVEL}" != "full" ]]; then
+      echo "Unsupported TENSOR_DUMP_LEVEL=${TENSOR_DUMP_LEVEL}; expected minimal or full" >&2
+      exit 2
+    fi
+    if [[ ! "${TENSOR_DUMP_START_CALL}" =~ ^[0-9]+$ || ! "${TENSOR_DUMP_MAX_CALLS}" =~ ^[0-9]+$ ]]; then
+      echo "TENSOR_DUMP_START_CALL and TENSOR_DUMP_MAX_CALLS must be non-negative integers" >&2
+      exit 2
+    fi
+    mkdir -p "${TENSOR_DUMP_DIR}"
+    export SGLANG_NPU_SPARSE_DEBUG_DIR="${TENSOR_DUMP_DIR}"
+    export SGLANG_NPU_SPARSE_DEBUG_LAYERS="${TENSOR_DUMP_LAYERS}"
+    export SGLANG_NPU_SPARSE_DEBUG_LEVEL="${TENSOR_DUMP_LEVEL}"
+    export SGLANG_NPU_SPARSE_DEBUG_START_CALL="${TENSOR_DUMP_START_CALL}"
+    export SGLANG_NPU_SPARSE_DEBUG_MAX_CALLS="${TENSOR_DUMP_MAX_CALLS}"
+    ;;
+  *)
+    echo "Unsupported TENSOR_DUMP=${TENSOR_DUMP}; expected 0 or 1" >&2
+    exit 2
+    ;;
+esac
 
 log_msg() {
   echo "$*" | tee -a "${EVAL_LOG}"
@@ -134,6 +167,12 @@ log_msg "num_examples=${NUM_EXAMPLES}"
 log_msg "num_threads=${NUM_THREADS}"
 log_msg "num_shots=${NUM_SHOTS}"
 log_msg "gsm8k_data_path=${GSM8K_DATA_PATH}"
+log_msg "tensor_dump=${TENSOR_DUMP}"
+log_msg "tensor_dump_dir=${TENSOR_DUMP_DIR}"
+log_msg "tensor_dump_layers=${TENSOR_DUMP_LAYERS}"
+log_msg "tensor_dump_level=${TENSOR_DUMP_LEVEL}"
+log_msg "tensor_dump_start_call=${TENSOR_DUMP_START_CALL}"
+log_msg "tensor_dump_max_calls=${TENSOR_DUMP_MAX_CALLS}"
 
 restart_server_if_needed
 
