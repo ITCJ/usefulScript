@@ -51,6 +51,15 @@ def parse_args() -> argparse.Namespace:
         default=1e-8,
         help="Absolute tolerance used by allclose (default: %(default)s)",
     )
+    parser.add_argument(
+        "--max-diff-rows",
+        type=int,
+        default=50,
+        help=(
+            "Maximum number of differing rows to print; use 0 for all "
+            "(default: %(default)s)"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -168,6 +177,8 @@ def compare_tensors(
     *,
     rtol: float,
     atol: float,
+    row_token_ids: torch.Tensor | None,
+    max_diff_rows: int,
 ) -> None:
     same_shape = left.shape == right.shape
     same_dtype = left.dtype == right.dtype
@@ -207,9 +218,70 @@ def compare_tensors(
     print(f"max_abs_diff: {format_number(difference.max())}")
     print(f"mean_abs_diff: {format_number(difference.mean())}")
 
+    if left.dim() == 0:
+        return
+
+    close_by_row = close_mask.reshape(left.shape[0], -1)
+    difference_by_row = difference.reshape(left.shape[0], -1)
+    different_per_row = (~close_by_row).sum(dim=1)
+    max_diff_per_row = difference_by_row.max(dim=1).values
+    mean_diff_per_row = difference_by_row.mean(dim=1)
+    bad_rows = (different_per_row > 0).nonzero().flatten()
+
+    print(f"different_rows: {bad_rows.numel()}")
+    if bad_rows.numel() == 0:
+        return
+
+    rows_to_print = bad_rows
+    if max_diff_rows > 0:
+        rows_to_print = bad_rows[:max_diff_rows]
+
+    print("row_differences:")
+    for row_tensor in rows_to_print:
+        row = int(row_tensor.item())
+        fields = [f"row={row}"]
+        if row_token_ids is not None:
+            fields.append(f"token_id={int(row_token_ids[row].item())}")
+        fields.extend(
+            [
+                f"different={int(different_per_row[row].item())}",
+                f"max_abs_diff={format_number(max_diff_per_row[row])}",
+                f"mean_abs_diff={format_number(mean_diff_per_row[row])}",
+            ]
+        )
+        print("  " + " ".join(fields))
+
+    omitted_rows = int(bad_rows.numel() - rows_to_print.numel())
+    if omitted_rows > 0:
+        print(
+            f"  ... omitted {omitted_rows} differing rows; "
+            "use --max-diff-rows 0 to print all"
+        )
+
+
+def get_selected_token_ids(
+    tensors: dict[str, Any],
+    expected_rows: int,
+) -> torch.Tensor | None:
+    topk = tensors.get("last_query_topk_indices")
+    valid_mask = tensors.get("last_query_topk_valid_mask")
+    if not isinstance(topk, torch.Tensor) or not isinstance(valid_mask, torch.Tensor):
+        return None
+
+    topk = topk.detach().cpu().to(torch.long).reshape(-1)
+    valid_mask = valid_mask.detach().cpu().to(torch.bool).reshape(-1)
+    if topk.shape != valid_mask.shape:
+        return None
+
+    token_ids = topk[valid_mask].contiguous()
+    return token_ids if token_ids.numel() == expected_rows else None
+
 
 def main() -> int:
     args = parse_args()
+    if args.max_diff_rows < 0:
+        raise ValueError("--max-diff-rows must be non-negative")
+
     payload = load_pt(args.pt_path)
     tensors = get_tensors(payload)
 
@@ -240,11 +312,19 @@ def main() -> int:
         comparison_pair = (selected_tensors[0], selected_tensors[1])
 
     if comparison_pair is not None:
+        row_token_ids = get_selected_token_ids(
+            tensors,
+            expected_rows=comparison_pair[0].shape[0]
+            if comparison_pair[0].dim() > 0
+            else 0,
+        )
         print()
         compare_tensors(
             *comparison_pair,
             rtol=args.rtol,
             atol=args.atol,
+            row_token_ids=row_token_ids,
+            max_diff_rows=args.max_diff_rows,
         )
     return 0
 
