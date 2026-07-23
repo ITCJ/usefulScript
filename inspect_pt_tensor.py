@@ -6,6 +6,8 @@ Examples:
     python3 inspect_pt_tensor.py host_write.pt 'source_kv[..., -64:]'
     python3 inspect_pt_tensor.py host_write.pt \
         'source_kv[..., -64:]' 'host_readback[..., -64:]'
+    python3 inspect_pt_tensor.py baseline.pt key_rope_write \
+        --compare ours.pt 'source_kv[..., -64:]'
 """
 
 from __future__ import annotations
@@ -30,6 +32,24 @@ def parse_args() -> argparse.Namespace:
         "expressions",
         nargs="+",
         help="Tensor name with an optional slice, e.g. source_kv[..., -64:]",
+    )
+    parser.add_argument(
+        "--compare",
+        nargs=2,
+        metavar=("PT_PATH", "EXPRESSION"),
+        help="Compare the first selected tensor with a tensor from another PT file",
+    )
+    parser.add_argument(
+        "--rtol",
+        type=float,
+        default=1e-5,
+        help="Relative tolerance used by allclose (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--atol",
+        type=float,
+        default=1e-8,
+        help="Absolute tolerance used by allclose (default: %(default)s)",
     )
     return parser.parse_args()
 
@@ -133,21 +153,99 @@ def print_statistics(expression: str, tensor: torch.Tensor) -> None:
         print(f"inf: {int(torch.isinf(values).sum().item())}")
 
 
-def main() -> int:
-    args = parse_args()
-    payload = load_pt(args.pt_path)
+def get_tensors(payload: Any) -> dict[str, Any]:
     tensors = payload.get("tensors", payload) if isinstance(payload, dict) else payload
     if not isinstance(tensors, dict):
         raise TypeError(
             "Expected the PT file to contain a dictionary or a 'tensors' dictionary"
         )
+    return tensors
+
+
+def compare_tensors(
+    left: torch.Tensor,
+    right: torch.Tensor,
+    *,
+    rtol: float,
+    atol: float,
+) -> None:
+    same_shape = left.shape == right.shape
+    same_dtype = left.dtype == right.dtype
+
+    print("comparison:")
+    print(f"same_shape: {same_shape}")
+    print(f"same_dtype: {same_dtype}")
+    if not same_shape:
+        print("torch_equal: False")
+        print("allclose: False")
+        print("different_elements: n/a")
+        print("max_abs_diff: n/a")
+        print("mean_abs_diff: n/a")
+        return
+
+    torch_equal = torch.equal(left, right)
+    left_values = left.to(torch.float32)
+    right_values = right.to(torch.float32)
+    close_mask = torch.isclose(
+        left_values,
+        right_values,
+        rtol=rtol,
+        atol=atol,
+        equal_nan=True,
+    )
+    difference = (left_values - right_values).abs()
+
+    print(f"torch_equal: {torch_equal}")
+    print(f"allclose: {bool(close_mask.all().item())}")
+    print(f"rtol: {rtol:.17g}")
+    print(f"atol: {atol:.17g}")
+    print(f"different_elements: {int((~close_mask).sum().item())}")
+    if difference.numel() == 0:
+        print("max_abs_diff: n/a")
+        print("mean_abs_diff: n/a")
+        return
+    print(f"max_abs_diff: {format_number(difference.max())}")
+    print(f"mean_abs_diff: {format_number(difference.mean())}")
+
+
+def main() -> int:
+    args = parse_args()
+    payload = load_pt(args.pt_path)
+    tensors = get_tensors(payload)
 
     print(f"path: {args.pt_path.resolve()}")
+    selected_tensors = []
     for index, expression in enumerate(args.expressions):
         if index:
             print()
         tensor = select_tensor(expression, tensors)
+        selected_tensors.append(tensor)
         print_statistics(expression, tensor)
+
+    comparison_pair = None
+    if args.compare is not None:
+        if len(selected_tensors) != 1:
+            raise ValueError(
+                "--compare requires exactly one expression for the first PT file"
+            )
+        other_path = Path(args.compare[0])
+        other_expression = args.compare[1]
+        other_tensors = get_tensors(load_pt(other_path))
+        other_tensor = select_tensor(other_expression, other_tensors)
+        print()
+        print(f"path: {other_path.resolve()}")
+        print_statistics(other_expression, other_tensor)
+        comparison_pair = (selected_tensors[0], other_tensor)
+    elif len(selected_tensors) == 2:
+        comparison_pair = (selected_tensors[0], selected_tensors[1])
+
+    if comparison_pair is not None:
+        print()
+        compare_tensors(
+            *comparison_pair,
+            rtol=args.rtol,
+            atol=args.atol,
+        )
     return 0
 
 
