@@ -22,7 +22,8 @@ unset ASCEND_LAUNCH_BLOCKING
 
 
 #sglang set
-cd /home/tcj/sglang-ascend
+REPO_DIR="${REPO_DIR:-/home/tcj/sglang-ascend}"
+cd "${REPO_DIR}"
 export PYTHONPATH="${PWD}/python${PYTHONPATH:+:${PYTHONPATH}}"
 export SGLANG_SET_CPU_AFFINITY=1
 
