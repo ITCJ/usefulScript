@@ -8,6 +8,8 @@ Examples:
         'source_kv[..., -64:]' 'host_readback[..., -64:]'
     python3 inspect_pt_tensor.py baseline.pt key_rope_write \
         --compare ours.pt 'source_kv[..., -64:]'
+    python3 inspect_pt_tensor.py baseline.pt 'attention_output.flatten()' \
+        --compare ours.pt 'attention_output.flatten()'
 """
 
 from __future__ import annotations
@@ -113,8 +115,20 @@ def evaluate_expression(node: ast.AST, tensors: dict[str, Any]) -> Any:
     if isinstance(node, ast.Subscript):
         value = evaluate_expression(node.value, tensors)
         return value[parse_index(node.slice)]
+    if isinstance(node, ast.Call):
+        if (
+            not isinstance(node.func, ast.Attribute)
+            or node.func.attr != "flatten"
+            or node.args
+            or node.keywords
+        ):
+            raise ValueError("Only a no-argument .flatten() call is allowed")
+        value = evaluate_expression(node.func.value, tensors)
+        if not isinstance(value, torch.Tensor):
+            raise TypeError(".flatten() can only be applied to a tensor")
+        return value.flatten()
     raise ValueError(
-        "Only a tensor name followed by optional integer/slice indexing is allowed"
+        "Only a tensor name followed by optional indexing or .flatten() is allowed"
     )
 
 
