@@ -10,6 +10,7 @@ SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 REPO_DIR="${REPO_DIR:-/home/tcj/sglang-ascend}"
 BASE_BRANCH="${BASE_BRANCH:-pr/ascend-sparse-kv-clean-v2-base}"
 OUR_BRANCH="${OUR_BRANCH:-tcj-debug/print_our_tensor}"
+BRANCH_REMOTE="${BRANCH_REMOTE:-origin}"
 SWEEP_SCRIPT="${SWEEP_SCRIPT:-${SCRIPT_DIR}/run_gsm8k_eval_config_sweep.sh}"
 LOG_DIR="${LOG_DIR:-${REPO_DIR}/gsm8k_eval_config_sweep_logs}"
 RUN_TS="$(date +%Y%m%d_%H%M%S)"
@@ -46,8 +47,11 @@ if ! git -C "${REPO_DIR}" diff --quiet ||
 fi
 
 for branch in "${BASE_BRANCH}" "${OUR_BRANCH}"; do
-  if ! git -C "${REPO_DIR}" show-ref --verify --quiet "refs/heads/${branch}"; then
-    echo "Local branch does not exist: ${branch}" >&2
+  if ! git -C "${REPO_DIR}" show-ref --verify --quiet "refs/heads/${branch}" &&
+    ! git -C "${REPO_DIR}" show-ref --verify --quiet \
+      "refs/remotes/${BRANCH_REMOTE}/${branch}"; then
+    echo "Branch does not exist locally or at ${BRANCH_REMOTE}/${branch}." >&2
+    echo "Run: git -C '${REPO_DIR}' fetch '${BRANCH_REMOTE}'" >&2
     exit 2
   fi
 done
@@ -82,6 +86,17 @@ stop_server() {
     fi
     sleep 1
   done
+}
+
+switch_branch() {
+  local branch="$1"
+
+  if git -C "${REPO_DIR}" show-ref --verify --quiet "refs/heads/${branch}"; then
+    git -C "${REPO_DIR}" switch "${branch}"
+  else
+    git -C "${REPO_DIR}" switch --track -c "${branch}" \
+      "${BRANCH_REMOTE}/${branch}"
+  fi
 }
 
 ORIGINAL_BRANCH="$(git -C "${REPO_DIR}" symbolic-ref --quiet --short HEAD || true)"
@@ -121,7 +136,7 @@ run_variant() {
   stop_server
   log_msg ""
   log_msg "===== $(date '+%F %T') variant=${variant} branch=${branch} ====="
-  git -C "${REPO_DIR}" switch "${branch}" 2>&1 | tee -a "${COMPARE_LOG}"
+  switch_branch "${branch}" 2>&1 | tee -a "${COMPARE_LOG}"
   commit="$(git -C "${REPO_DIR}" rev-parse HEAD)"
   log_msg "commit=${commit}"
   log_msg "sweep_dir=${sweep_dir}"
