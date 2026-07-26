@@ -11,6 +11,7 @@ REPO_DIR="${REPO_DIR:-/home/tcj/sglang-ascend}"
 BASE_BRANCH="${BASE_BRANCH:-pr/ascend-sparse-kv-clean-v2-base}"
 OUR_BRANCH="${OUR_BRANCH:-tcj-debug/print_our_tensor}"
 BRANCH_REMOTE="${BRANCH_REMOTE:-origin}"
+COMPARE_VARIANTS="${COMPARE_VARIANTS:-base ours}"
 SWEEP_SCRIPT="${SWEEP_SCRIPT:-${SCRIPT_DIR}/run_gsm8k_eval_config_sweep.sh}"
 LOG_DIR="${LOG_DIR:-/home/tcj/gsm8k_eval_config_sweep_logs}"
 RUN_TS="$(date +%Y%m%d_%H%M%S)"
@@ -46,7 +47,26 @@ if ! git -C "${REPO_DIR}" diff --quiet ||
   exit 2
 fi
 
-for branch in "${BASE_BRANCH}" "${OUR_BRANCH}"; do
+read -r -a COMPARE_VARIANT_LIST <<< "${COMPARE_VARIANTS}"
+if [[ "${#COMPARE_VARIANT_LIST[@]}" -eq 0 ]]; then
+  echo "COMPARE_VARIANTS must contain base, ours, or both." >&2
+  exit 2
+fi
+
+for variant in "${COMPARE_VARIANT_LIST[@]}"; do
+  case "${variant}" in
+    base)
+      branch="${BASE_BRANCH}"
+      ;;
+    ours)
+      branch="${OUR_BRANCH}"
+      ;;
+    *)
+      echo "Invalid COMPARE_VARIANTS entry '${variant}'; expected base or ours." >&2
+      exit 2
+      ;;
+  esac
+
   if ! git -C "${REPO_DIR}" show-ref --verify --quiet "refs/heads/${branch}" &&
     ! git -C "${REPO_DIR}" show-ref --verify --quiet \
       "refs/remotes/${BRANCH_REMOTE}/${branch}"; then
@@ -162,13 +182,19 @@ log_msg "[$(date '+%F %T')] GSM8K branch comparison started"
 log_msg "repo_dir=${REPO_DIR}"
 log_msg "base_branch=${BASE_BRANCH}"
 log_msg "our_branch=${OUR_BRANCH}"
+log_msg "variants=${COMPARE_VARIANT_LIST[*]}"
 log_msg "compare_dir=${COMPARE_DIR}"
 
 overall_status=0
-run_variant "base" "${BASE_BRANCH}" "${BASE_SWEEP_LABEL}" "$@" ||
-  overall_status=1
-run_variant "ours" "${OUR_BRANCH}" "${OUR_SWEEP_LABEL}" "$@" ||
-  overall_status=1
+for variant in "${COMPARE_VARIANT_LIST[@]}"; do
+  if [[ "${variant}" == "base" ]]; then
+    run_variant "base" "${BASE_BRANCH}" "${BASE_SWEEP_LABEL}" "$@" ||
+      overall_status=1
+  else
+    run_variant "ours" "${OUR_BRANCH}" "${OUR_SWEEP_LABEL}" "$@" ||
+      overall_status=1
+  fi
+done
 
 log_msg ""
 log_msg "[$(date '+%F %T')] GSM8K branch comparison finished"
