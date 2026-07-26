@@ -11,6 +11,7 @@ REPO_DIR="${REPO_DIR:-/home/tcj/sglang-ascend}"
 BASE_BRANCH="${BASE_BRANCH:-pr/ascend-sparse-kv-clean-v2-base}"
 OUR_BRANCH="${OUR_BRANCH:-tcj-debug/print_our_tensor}"
 BRANCH_REMOTE="${BRANCH_REMOTE:-origin}"
+UPDATE_FROM_REMOTE="${UPDATE_FROM_REMOTE:-1}"
 COMPARE_VARIANTS="${COMPARE_VARIANTS:-base ours}"
 SWEEP_SCRIPT="${SWEEP_SCRIPT:-${SCRIPT_DIR}/run_gsm8k_eval_config_sweep.sh}"
 LOG_DIR="${LOG_DIR:-/home/tcj/gsm8k_eval_config_sweep_logs}"
@@ -46,6 +47,18 @@ if ! git -C "${REPO_DIR}" diff --quiet ||
   echo "Tracked changes exist in ${REPO_DIR}; commit or stash them first." >&2
   exit 2
 fi
+
+case "${UPDATE_FROM_REMOTE}" in
+  0)
+    ;;
+  1)
+    git -C "${REPO_DIR}" fetch --prune "${BRANCH_REMOTE}"
+    ;;
+  *)
+    echo "UPDATE_FROM_REMOTE must be 0 or 1, got '${UPDATE_FROM_REMOTE}'." >&2
+    exit 2
+    ;;
+esac
 
 read -r -a COMPARE_VARIANT_LIST <<< "${COMPARE_VARIANTS}"
 if [[ "${#COMPARE_VARIANT_LIST[@]}" -eq 0 ]]; then
@@ -110,12 +123,18 @@ stop_server() {
 
 switch_branch() {
   local branch="$1"
+  local remote_ref="refs/remotes/${BRANCH_REMOTE}/${branch}"
 
   if git -C "${REPO_DIR}" show-ref --verify --quiet "refs/heads/${branch}"; then
     git -C "${REPO_DIR}" switch "${branch}"
   else
     git -C "${REPO_DIR}" switch --track -c "${branch}" \
       "${BRANCH_REMOTE}/${branch}"
+  fi
+
+  if [[ "${UPDATE_FROM_REMOTE}" == "1" ]] &&
+    git -C "${REPO_DIR}" show-ref --verify --quiet "${remote_ref}"; then
+    git -C "${REPO_DIR}" merge --ff-only "${BRANCH_REMOTE}/${branch}"
   fi
 }
 
@@ -182,6 +201,7 @@ log_msg "[$(date '+%F %T')] GSM8K branch comparison started"
 log_msg "repo_dir=${REPO_DIR}"
 log_msg "base_branch=${BASE_BRANCH}"
 log_msg "our_branch=${OUR_BRANCH}"
+log_msg "update_from_remote=${UPDATE_FROM_REMOTE}"
 log_msg "variants=${COMPARE_VARIANT_LIST[*]}"
 log_msg "compare_dir=${COMPARE_DIR}"
 
