@@ -9,6 +9,7 @@ ITER="${ITER:-1}"
 PHASE="${PHASE:-decode}"
 CALL_ID="${CALL_ID:-22}"
 LAYER="${LAYER:-6}"
+RANK="${RANK:-0}"
 
 if [[ -z "${COMPARE_DIR}" ]]; then
   echo "Usage: COMPARE_DIR=/path/to/compare_dir $0" >&2
@@ -23,4 +24,5 @@ python3 "${SCRIPT_DIR}/compare_layer_flow.py" \
   "${BASE_DUMP}" "${OURS_DUMP}" \
   --phase "${PHASE}" \
   --call "${CALL_ID}" \
-  --layer "${LAYER}"
+  --layer "${LAYER}" \
+  --rank "${RANK}"
