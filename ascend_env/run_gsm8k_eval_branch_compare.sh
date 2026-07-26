@@ -12,7 +12,7 @@ BASE_BRANCH="${BASE_BRANCH:-pr/ascend-sparse-kv-clean-v2-base}"
 OUR_BRANCH="${OUR_BRANCH:-tcj-debug/print_our_tensor}"
 BRANCH_REMOTE="${BRANCH_REMOTE:-origin}"
 SWEEP_SCRIPT="${SWEEP_SCRIPT:-${SCRIPT_DIR}/run_gsm8k_eval_config_sweep.sh}"
-LOG_DIR="${LOG_DIR:-${REPO_DIR}/gsm8k_eval_config_sweep_logs}"
+LOG_DIR="${LOG_DIR:-/home/tcj/gsm8k_eval_config_sweep_logs}"
 RUN_TS="$(date +%Y%m%d_%H%M%S)"
 
 COMMON_LABEL="${COMPARE_LABEL:-${SWEEP_LABEL:-branch_compare}}"
