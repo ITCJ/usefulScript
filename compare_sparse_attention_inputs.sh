@@ -57,3 +57,9 @@ for tensor in "${TENSORS[@]}"; do
     --atol "${ATOL}" \
     --max-diff-rows "${MAX_DIFF_ROWS}"
 done
+
+echo
+echo "===== semantic metadata validation ====="
+python3 "${SCRIPT_DIR}/validate_sparse_attention_metadata.py" \
+  "${BASE_PT}" \
+  "${OURS_PT}"
