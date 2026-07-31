@@ -4,6 +4,8 @@ set -Eeuo pipefail
 # Sweep bench_serving max-concurrency from 1 to 32.
 # num-prompts is kept equal to the current concurrency.
 
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
 DATASET_PATH="${DATASET_PATH:-/home/tcj/script/ShareGPT_V3_unfiltered_cleaned_split.json}"
 BACKEND="${BACKEND:-sglang}"
 HOST="${HOST:-127.0.0.1}"
@@ -18,9 +20,29 @@ LOG_DIR="${LOG_DIR:-/home/tcj/sglang-ascend/bench_serving_sweep_logs}"
 CONTINUE_ON_ERROR="${CONTINUE_ON_ERROR:-0}"
 READY_CHECK_TIMEOUT_SEC="${READY_CHECK_TIMEOUT_SEC:-6000}"
 RESTART_SERVER_EACH_RUN="${RESTART_SERVER_EACH_RUN:-1}"
-SERVER_START_SCRIPT="${SERVER_START_SCRIPT:-/home/tcj/script/start.sh}"
+SERVER_START_SCRIPT="${SERVER_START_SCRIPT:-${SCRIPT_DIR}/start.sh}"
 SERVER_STOP_TIMEOUT_SEC="${SERVER_STOP_TIMEOUT_SEC:-120}"
 SERVER_READY_PATH="${SERVER_READY_PATH:-/v1/models}"
+CUDA_GRAPH_MODE="${CUDA_GRAPH_MODE:-eager}"
+# When unset, CUDA_GRAPH_BS follows the current concurrency.
+CUDA_GRAPH_BS="${CUDA_GRAPH_BS:-}"
+
+if [[ ! "${START_CONCURRENCY}" =~ ^[1-9][0-9]*$ ]] ||
+  [[ ! "${END_CONCURRENCY}" =~ ^[1-9][0-9]*$ ]] ||
+  (( START_CONCURRENCY > END_CONCURRENCY )); then
+  echo "Invalid concurrency range: ${START_CONCURRENCY}..${END_CONCURRENCY}" >&2
+  exit 2
+fi
+
+if [[ "${CUDA_GRAPH_MODE}" != "eager" && "${CUDA_GRAPH_MODE}" != "graph" ]]; then
+  echo "CUDA_GRAPH_MODE must be 'eager' or 'graph', got: ${CUDA_GRAPH_MODE}" >&2
+  exit 2
+fi
+
+if [[ -n "${CUDA_GRAPH_BS}" && ! "${CUDA_GRAPH_BS}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "CUDA_GRAPH_BS must be a positive integer when set, got: ${CUDA_GRAPH_BS}" >&2
+  exit 2
+fi
 
 mkdir -p "${LOG_DIR}"
 
@@ -41,6 +63,9 @@ echo "restart_server_each_run=${RESTART_SERVER_EACH_RUN}"
 echo "server_start_script=${SERVER_START_SCRIPT}"
 echo "server_stop_timeout_sec=${SERVER_STOP_TIMEOUT_SEC}"
 echo "server_ready_path=${SERVER_READY_PATH}"
+echo "cuda_graph_mode=${CUDA_GRAPH_MODE}"
+echo "cuda_graph_bs=${CUDA_GRAPH_BS:-per-concurrency}"
+echo "server_max_running_requests=per-concurrency"
 echo "run_dir=${RUN_DIR}"
 
 log_msg() {
@@ -107,13 +132,20 @@ wait_for_server_processes_gone() {
 restart_server_if_needed() {
   local concurrency="$1"
   local server_log="$2"
+  local cuda_graph_bs="$3"
 
   if [[ "${RESTART_SERVER_EACH_RUN}" != "1" ]]; then
-    echo "RESTART_SERVER_EACH_RUN=0; this script did not capture a per-case server log." > "${server_log}"
+    {
+      echo "RESTART_SERVER_EACH_RUN=0; this script did not restart the server."
+      echo "The per-case MAX_RUNNING_REQUESTS and CUDA graph settings were not applied."
+    } > "${server_log}"
     return 0
   fi
 
   log_msg "[$(date '+%F %T')] restarting SGLang server before concurrency=${concurrency}"
+  log_msg "MAX_RUNNING_REQUESTS=${concurrency}"
+  log_msg "CUDA_GRAPH_MODE=${CUDA_GRAPH_MODE}"
+  log_msg "CUDA_GRAPH_BS=${cuda_graph_bs}"
   log_msg "server_log=${server_log}"
 
   pkill -f "sglang.*launch_server" || true
@@ -125,13 +157,17 @@ restart_server_if_needed() {
     return 1
   fi
 
-  nohup "${SERVER_START_SCRIPT}" > "${server_log}" 2>&1 &
+  MAX_RUNNING_REQUESTS="${concurrency}" \
+    CUDA_GRAPH_MODE="${CUDA_GRAPH_MODE}" \
+    CUDA_GRAPH_BS="${cuda_graph_bs}" \
+    nohup "${SERVER_START_SCRIPT}" > "${server_log}" 2>&1 &
   log_msg "[$(date '+%F %T')] start script launched with pid=$!"
   wait_for_server_ready
 }
 
 for concurrency in $(seq "${START_CONCURRENCY}" "${END_CONCURRENCY}"); do
   num_prompts="${concurrency}"
+  server_cuda_graph_bs="${CUDA_GRAPH_BS:-${concurrency}}"
   case_dir="${RUN_DIR}/c${concurrency}_p${num_prompts}"
   BENCH_LOG="${case_dir}/bench.log"
   server_log="${case_dir}/server.log"
@@ -140,10 +176,17 @@ for concurrency in $(seq "${START_CONCURRENCY}" "${END_CONCURRENCY}"); do
 
   mkdir -p "${case_dir}"
   : > "${BENCH_LOG}"
+  {
+    echo "BENCH_MAX_CONCURRENCY=${concurrency}"
+    echo "NUM_PROMPTS=${num_prompts}"
+    echo "MAX_RUNNING_REQUESTS=${concurrency}"
+    echo "CUDA_GRAPH_MODE=${CUDA_GRAPH_MODE}"
+    echo "CUDA_GRAPH_BS=${server_cuda_graph_bs}"
+  } > "${case_dir}/config.env"
 
   log_msg ""
   log_msg "case_dir=${case_dir}"
-  restart_server_if_needed "${concurrency}" "${server_log}"
+  restart_server_if_needed "${concurrency}" "${server_log}" "${server_cuda_graph_bs}"
 
   log_msg "${marker}"
 
