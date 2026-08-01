@@ -37,7 +37,7 @@ export PATH="/usr/local/Ascend/8.5.0/compiler/bishengir/bin:${PATH}"
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 export STREAMS_PER_DEVICE=32
 export SGLANG_SCHEDULER_DECREASE_PREFILL_IDLE=1
-export SGLANG_PREFILL_DELAYER_MAX_DELAY_PASSED=200
+export SGLANG_PREFILL_DELAYER_MAX_DELAY_PASSES=200
 
 # 网卡
 export HCCL_SOCKET_IFNAME=enp196s0f0
