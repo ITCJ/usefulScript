@@ -31,6 +31,7 @@ MODEL_PATH="${MODEL_PATH:-/home/tcj/DeepSeek-V3.2-Exp-w8a8}"
 MAX_RUNNING_REQUESTS="${MAX_RUNNING_REQUESTS:-1}"
 CUDA_GRAPH_MODE="${CUDA_GRAPH_MODE:-eager}"
 CUDA_GRAPH_BS="${CUDA_GRAPH_BS:-${MAX_RUNNING_REQUESTS}}"
+CONTEXT_LENGTH="${CONTEXT_LENGTH:-40000}"
 export PATH="/usr/local/Ascend/8.5.0/compiler/bishengir/bin:${PATH}"
 
 # 内存碎片
@@ -71,7 +72,7 @@ cmd=(
     --host 127.0.0.1 --port 6699
     --mem-fraction-static 0.80
     --max-running-requests "${MAX_RUNNING_REQUESTS}"
-    --context-length 40000
+    --context-length "${CONTEXT_LENGTH}"
     --disable-radix-cache
     --chunked-prefill-size -1
     --enable-dp-attention --dp-size 1 --enable-dp-lm-head
@@ -92,8 +93,8 @@ case "${CUDA_GRAPH_MODE}" in
         ;;
 esac
 
-printf 'Starting server with CUDA_GRAPH_MODE=%s MAX_RUNNING_REQUESTS=%s CUDA_GRAPH_BS=%s\n' \
-    "${CUDA_GRAPH_MODE}" "${MAX_RUNNING_REQUESTS}" "${CUDA_GRAPH_BS}"
+printf 'Starting server with CUDA_GRAPH_MODE=%s MAX_RUNNING_REQUESTS=%s CUDA_GRAPH_BS=%s CONTEXT_LENGTH=%s\n' \
+    "${CUDA_GRAPH_MODE}" "${MAX_RUNNING_REQUESTS}" "${CUDA_GRAPH_BS}" "${CONTEXT_LENGTH}"
 printf 'Running: '
 printf '%q ' "${cmd[@]}"
 printf '\n'
