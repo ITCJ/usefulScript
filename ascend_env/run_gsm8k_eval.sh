@@ -41,7 +41,7 @@ API="${API:-chat}"
 THINKING_MODE="${THINKING_MODE:-}"
 export CONTEXT_LENGTH="${CONTEXT_LENGTH:-40000}"
 GSM8K_DATA_PATH="${GSM8K_DATA_PATH:-${SCRIPT_DIR}/gsm8k_test.jsonl}"
-AIME26_DATA_PATH="${AIME26_DATA_PATH:-${SCRIPT_DIR}/aime26_test.jsonl}"
+AIME26_DATA_PATH="${AIME26_DATA_PATH:-${SCRIPT_DIR}/aime26}"
 
 case "${EVAL_NAME}" in
   gsm8k)
@@ -156,8 +156,12 @@ validate_common_options() {
     return 2
   fi
   if [[ "${EVAL_NAME}" == "aime26" ]]; then
-    if [[ ! -f "${AIME26_DATA_PATH}" ]]; then
+    if [[ ! -d "${AIME26_DATA_PATH}" ]]; then
       echo "AIME26_DATA_PATH does not exist: ${AIME26_DATA_PATH}" >&2
+      return 2
+    fi
+    if [[ ! -f "${AIME26_DATA_PATH}/test.jsonl" ]]; then
+      echo "AIME26 test split does not exist: ${AIME26_DATA_PATH}/test.jsonl" >&2
       return 2
     fi
     if [[ -x "${EVALSCOPE_BIN}" ]]; then
