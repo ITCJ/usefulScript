@@ -24,7 +24,10 @@ docker run -d \
   -v /var/log/npu/slog/:/var/log/npu/slog \
   -v /var/log/npu/profiling/:/var/log/npu/profiling \
   -v /var/log/npu/dump/:/var/log/npu/dump \
-  -v /root/tcj:/home/tcj \
-  --entrypoint /bin/sh \
+  -v /tmp:/tmp:rw \
+  -v /home/tcj:/home/tcj \
+  -v /home/caofei:/home/caofei \
+  -v /home/cryang_wx15110221:/home/cryang_wx15110221 \
+  --entrypoint /usr/bin/tini \
   mindspore:cann8.5.0 \
   -c 'while true; do sleep 3600; done'

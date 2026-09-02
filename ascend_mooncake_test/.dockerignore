@@ -1,0 +1,7 @@
+deploy.env
+deploy.env.*
+.env
+*.log
+*.tar
+*.tar.gz
+logs/
