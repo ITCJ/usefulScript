@@ -73,7 +73,7 @@ APT_MIRROR=https://mirrors.ustc.edu.cn/ubuntu
 APT_SECURITY_MIRROR=
 
 # aarch64/ARM; use this instead of APT_MIRROR
-APT_PORTS_MIRROR=https://mirrors.ustc.edu.cn/ubuntu-ports
+APT_PORTS_MIRROR=http://mirrors.ustc.edu.cn/ubuntu-ports
 ```
 
 `APT_SECURITY_MIRROR` is separate so the official Ubuntu security source can be
