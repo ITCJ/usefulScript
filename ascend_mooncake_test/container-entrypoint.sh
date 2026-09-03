@@ -10,7 +10,7 @@ source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
 # On aarch64, loading jemalloc after torch_npu/CANN has consumed static TLS can
 # fail with "cannot allocate memory in static TLS block". Preload it before the
 # SGLang Python process starts.
-JEMALLOC_SO=$(ldconfig -p 2>/dev/null | sed -n '/libjemalloc\.so\.2/{s/.*=>[[:space:]]*//;p;q;}')
+JEMALLOC_SO=$(ldconfig -p 2>/dev/null | sed -n "/libjemalloc\\.so\\.2/{s/.*=>[[:space:]]*//;p;q;}")
 if [[ -z "${JEMALLOC_SO}" ]]; then
   echo "libjemalloc.so.2 was not found; rebuild the derived image" >&2
   exit 1

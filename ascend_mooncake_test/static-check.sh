@@ -33,6 +33,10 @@ if grep -Rq '\$NF' \
   echo 'Nested container scripts must not use awk $NF under set -u' >&2
   exit 1
 fi
+if grep -Fq "sed -n '" "${SCRIPT_DIR}/preflight.sh"; then
+  echo "Single-quoted sed expressions break the outer bash -lc payload" >&2
+  exit 1
+fi
 grep -Fq 'NPU_SMI_BIN' "${SCRIPT_DIR}/preflight.sh"
 
 echo "Static deployment checks passed"
