@@ -57,10 +57,13 @@ model downloads are required, configure a carefully scoped runtime proxy and a
 `no_proxy` list containing localhost and both worker IPs; local model mounts are
 preferred.
 
-The derived image also installs the runtime RDMA loader packages
-`libibverbs1`, `ibverbs-providers`, and `rdma-core`. Mooncake's NPU wheel links
-its common engine objects against `libibverbs.so.1` even when the selected data
-transport is Ascend Direct/ADXL.
+The derived image also installs the runtime packages `libibverbs1`,
+`ibverbs-providers`, `rdma-core`, `librdmacm1`, `liburing2`, and `libjemalloc2`.
+Mooncake's NPU wheel links its common engine objects against `libibverbs.so.1`
+even when the selected data transport is Ascend Direct/ADXL. Jemalloc is also
+required for stable teardown: without `libjemalloc.so.2`, importing
+`mooncake.engine` can appear successful and then abort during Python shutdown
+with `corrupted size vs. prev_size`.
 
 APT mirrors are optional and configured in `deploy.env`:
 
@@ -262,6 +265,10 @@ and Ascend transport startup. Common failures:
 - `No module named mooncake`: the derived image was not used.
 - `libibverbs.so.1: cannot open shared object file`: an older copy of the
   derived image is still in use; rebuild with `./build-image.sh` on both nodes.
+- `corrupted size vs. prev_size` followed by exit code 134 after
+  `Mooncake TransferEngine import: OK`: `libjemalloc2` is missing from an older
+  derived image. Rebuild the updated image on both nodes; do not mask this with
+  `os._exit()`.
 - `can't get ascend_hal device count`: NPU character devices or host driver
   mounts are missing. The updated `preflight.sh` maps the selected NPUs and
   validates `torch.npu.device_count()` inside the same runtime image.

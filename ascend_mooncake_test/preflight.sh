@@ -105,6 +105,10 @@ ldconfig -p | grep -F "libibverbs.so.1" >/dev/null || {
   echo "libibverbs.so.1 is missing inside the runtime image; rebuild it with ./build-image.sh" >&2
   exit 1
 }
+ldconfig -p | grep -F "libjemalloc.so.2" >/dev/null || {
+  echo "libjemalloc.so.2 is missing inside the runtime image; rebuild it with ./build-image.sh" >&2
+  exit 1
+}
 
 python3 - <<"PY"
 import ctypes
@@ -116,6 +120,7 @@ import torch_npu
 from mooncake.engine import TransferEngine
 
 ctypes.CDLL("libibverbs.so.1")
+ctypes.CDLL("libjemalloc.so.2")
 expected = int(os.environ["EXPECTED_NPU_COUNT"])
 actual = torch.npu.device_count()
 print("sglang:", getattr(sglang, "__version__", "unknown"))
@@ -124,6 +129,7 @@ print("torch_npu:", torch_npu.__version__)
 print("torch.npu.device_count:", actual)
 print("mooncake-transfer-engine-npu:", md.version("mooncake-transfer-engine-npu"))
 print("libibverbs.so.1 load: OK")
+print("libjemalloc.so.2 load: OK")
 print("Mooncake TransferEngine import: OK", TransferEngine)
 if actual < expected:
     raise RuntimeError(f"Expected at least {expected} visible NPUs, but torch_npu found {actual}")

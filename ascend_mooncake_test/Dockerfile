@@ -41,7 +41,10 @@ RUN set -eu; \
       ibverbs-providers \
       libcurl4 \
       libibverbs1 \
+      libjemalloc2 \
       libnuma1 \
+      librdmacm1 \
+      liburing2 \
       rdma-core \
     && rm -rf /var/lib/apt/lists/*
 
@@ -54,7 +57,8 @@ RUN python3 -m pip uninstall -y \
     && python3 -m pip install --no-cache-dir \
       "mooncake-transfer-engine-npu==${MOONCAKE_VERSION}" \
     && ldconfig \
-    && ldconfig -p | grep -F 'libibverbs.so.1'
+    && ldconfig -p | grep -F 'libibverbs.so.1' \
+    && ldconfig -p | grep -F 'libjemalloc.so.2'
 
 LABEL org.opencontainers.image.title="SGLang Ascend with Mooncake NPU transfer engine" \
       org.opencontainers.image.version="sglang-v0.5.16-mooncake-0.3.11.post1"
