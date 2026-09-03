@@ -39,6 +39,22 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"
 }
 
+find_npu_smi() {
+  local candidate
+  candidate=$(command -v npu-smi 2>/dev/null || true)
+  if [[ -n "${candidate}" && -x "${candidate}" ]]; then
+    printf '%s\n' "${candidate}"
+    return 0
+  fi
+  for candidate in /usr/local/bin/npu-smi /usr/local/sbin/npu-smi; do
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+  return 1
+}
+
 required_home_mounts() {
   local raw=${REQUIRED_HOME_MOUNTS:-} path
   [[ -n "${raw}" ]] || return 0
@@ -87,7 +103,7 @@ append_existing_device() {
 }
 
 build_docker_args() {
-  local role=$1 id
+  local role=$1 id npu_smi_path
   DOCKER_ARGS=(
     --detach
     --init
@@ -124,8 +140,9 @@ build_docker_args() {
     DOCKER_ARGS+=(--volume /usr/local/dcmi:/usr/local/dcmi:ro)
   [[ -d /usr/local/sbin ]] && \
     DOCKER_ARGS+=(--volume /usr/local/sbin:/usr/local/sbin:ro)
-  if [[ -x /usr/local/bin/npu-smi ]]; then
-    DOCKER_ARGS+=(--volume /usr/local/bin/npu-smi:/usr/local/bin/npu-smi:ro)
+  npu_smi_path=$(find_npu_smi || true)
+  if [[ -n "${npu_smi_path}" && "${npu_smi_path}" != /usr/local/sbin/* ]]; then
+    DOCKER_ARGS+=(--volume "${npu_smi_path}:${npu_smi_path}:ro")
   fi
   [[ -f /etc/localtime ]] && \
     DOCKER_ARGS+=(--volume /etc/localtime:/etc/localtime:ro)

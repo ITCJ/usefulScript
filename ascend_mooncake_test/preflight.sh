@@ -14,9 +14,10 @@ validate_required_home_mounts
 docker image inspect "${RUNTIME_IMAGE}" >/dev/null 2>&1 || \
   die "Runtime image not found: ${RUNTIME_IMAGE}; run ./build-image.sh"
 
-command -v npu-smi >/dev/null 2>&1 || die "npu-smi is not available on the host"
+npu_smi_bin=$(find_npu_smi || true)
+[[ -n "${npu_smi_bin}" ]] || die "npu-smi is not available in PATH, /usr/local/bin, or /usr/local/sbin"
 log "Host NPU summary"
-npu-smi info -l
+"${npu_smi_bin}" info -l
 
 required_max=$((NPU_COUNT_PER_ROLE - 1))
 if [[ "${DEPLOY_MODE}" == "single" ]]; then
@@ -44,25 +45,88 @@ fi
 
 mkdir -p "${LOG_DIR}"
 
-log "Checking SGLang, torch_npu and Mooncake packages inside the runtime image"
-docker run --rm --network host --ipc host \
-  --volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro \
-  --volume /etc/hccn.conf:/etc/hccn.conf:ro \
+log "Checking NPU visibility, npu-smi, libibverbs, SGLang, torch_npu and Mooncake inside the runtime image"
+PREFLIGHT_DOCKER_ARGS=(
+  --rm
+  --network host
+  --ipc host
+  --shm-size "${SHM_SIZE}"
+  --user 0:0
+  --ulimit memlock=-1:-1
+  --cap-add IPC_LOCK
+  --security-opt seccomp=unconfined
+)
+if [[ "${USE_PRIVILEGED}" == "1" ]]; then
+  PREFLIGHT_DOCKER_ARGS+=(--privileged)
+fi
+for common_device in /dev/davinci_manager /dev/devmm_svm /dev/hisi_hdc; do
+  [[ -e "${common_device}" ]] && PREFLIGHT_DOCKER_ARGS+=(--device "${common_device}")
+done
+for ((i = 0; i <= required_max; i++)); do
+  PREFLIGHT_DOCKER_ARGS+=(--device "/dev/davinci${i}")
+done
+PREFLIGHT_DOCKER_ARGS+=(
+  --volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro
+  --volume /etc/hccn.conf:/etc/hccn.conf:ro
+)
+[[ -d /usr/local/Ascend/firmware ]] && \
+  PREFLIGHT_DOCKER_ARGS+=(--volume /usr/local/Ascend/firmware:/usr/local/Ascend/firmware:ro)
+[[ -d /usr/local/Ascend/add-ons ]] && \
+  PREFLIGHT_DOCKER_ARGS+=(--volume /usr/local/Ascend/add-ons:/usr/local/Ascend/add-ons:ro)
+[[ -d /usr/local/dcmi ]] && \
+  PREFLIGHT_DOCKER_ARGS+=(--volume /usr/local/dcmi:/usr/local/dcmi:ro)
+[[ -d /usr/local/sbin ]] && \
+  PREFLIGHT_DOCKER_ARGS+=(--volume /usr/local/sbin:/usr/local/sbin:ro)
+if [[ "${npu_smi_bin}" != /usr/local/sbin/* ]]; then
+  PREFLIGHT_DOCKER_ARGS+=(--volume "${npu_smi_bin}:${npu_smi_bin}:ro")
+fi
+[[ -f /etc/ascend_install.info ]] && \
+  PREFLIGHT_DOCKER_ARGS+=(--volume /etc/ascend_install.info:/etc/ascend_install.info:ro)
+[[ -d /var/queue_schedule ]] && \
+  PREFLIGHT_DOCKER_ARGS+=(--volume /var/queue_schedule:/var/queue_schedule)
+
+docker run "${PREFLIGHT_DOCKER_ARGS[@]}" \
+  --env "EXPECTED_NPU_COUNT=$((required_max + 1))" \
   --entrypoint bash "${RUNTIME_IMAGE}" -lc '
 set -Eeuo pipefail
 source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
+
+NPU_SMI_BIN=$(command -v npu-smi 2>/dev/null || true)
+if [[ -z "${NPU_SMI_BIN}" && -x /usr/local/bin/npu-smi ]]; then
+  NPU_SMI_BIN=/usr/local/bin/npu-smi
+fi
+if [[ -z "${NPU_SMI_BIN}" && -x /usr/local/sbin/npu-smi ]]; then
+  NPU_SMI_BIN=/usr/local/sbin/npu-smi
+fi
+[[ -n "${NPU_SMI_BIN}" ]] || { echo "npu-smi is not visible inside the container" >&2; exit 1; }
+"${NPU_SMI_BIN}" info -l
+
+ldconfig -p | grep -F "libibverbs.so.1" >/dev/null || {
+  echo "libibverbs.so.1 is missing inside the runtime image; rebuild it with ./build-image.sh" >&2
+  exit 1
+}
+
 python3 - <<"PY"
+import ctypes
 import importlib.metadata as md
+import os
 import sglang
 import torch
 import torch_npu
 from mooncake.engine import TransferEngine
 
+ctypes.CDLL("libibverbs.so.1")
+expected = int(os.environ["EXPECTED_NPU_COUNT"])
+actual = torch.npu.device_count()
 print("sglang:", getattr(sglang, "__version__", "unknown"))
 print("torch:", torch.__version__)
 print("torch_npu:", torch_npu.__version__)
+print("torch.npu.device_count:", actual)
 print("mooncake-transfer-engine-npu:", md.version("mooncake-transfer-engine-npu"))
+print("libibverbs.so.1 load: OK")
 print("Mooncake TransferEngine import: OK", TransferEngine)
+if actual < expected:
+    raise RuntimeError(f"Expected at least {expected} visible NPUs, but torch_npu found {actual}")
 PY
 '
 

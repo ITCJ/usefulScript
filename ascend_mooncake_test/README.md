@@ -57,6 +57,11 @@ model downloads are required, configure a carefully scoped runtime proxy and a
 `no_proxy` list containing localhost and both worker IPs; local model mounts are
 preferred.
 
+The derived image also installs the runtime RDMA loader packages
+`libibverbs1`, `ibverbs-providers`, and `rdma-core`. Mooncake's NPU wheel links
+its common engine objects against `libibverbs.so.1` even when the selected data
+transport is Ascend Direct/ADXL.
+
 ## Topologies
 
 Single A3 server (default):
@@ -238,6 +243,14 @@ Expected worker logs include successful Mooncake Transfer Engine initialization
 and Ascend transport startup. Common failures:
 
 - `No module named mooncake`: the derived image was not used.
+- `libibverbs.so.1: cannot open shared object file`: an older copy of the
+  derived image is still in use; rebuild with `./build-image.sh` on both nodes.
+- `can't get ascend_hal device count`: NPU character devices or host driver
+  mounts are missing. The updated `preflight.sh` maps the selected NPUs and
+  validates `torch.npu.device_count()` inside the same runtime image.
+- `can not use command npu-smi info`: ensure the host has `npu-smi` in PATH,
+  `/usr/local/bin`, or `/usr/local/sbin`; preflight now mounts and runs it in the
+  validation container.
 - `Failed to install Ascend transport`: the generic Mooncake wheel was installed
   instead of `mooncake-transfer-engine-npu`, or CANN/driver libraries mismatch.
 - Peer/bootstrap timeout: `PREFILL_IP`, bootstrap port, dynamic Mooncake RPC
@@ -250,6 +263,12 @@ Stop all local components with:
 
 ```bash
 ./stop.sh
+```
+
+Run local script/Dockerfile regression checks with:
+
+```bash
+./static-check.sh
 ```
 
 ## Scope note: Mooncake Store / HiCache
