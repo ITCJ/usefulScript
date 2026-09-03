@@ -38,5 +38,7 @@ if grep -Fq "sed -n '" "${SCRIPT_DIR}/preflight.sh"; then
   exit 1
 fi
 grep -Fq 'NPU_SMI_BIN' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'USE_DOCKER_INIT' "${SCRIPT_DIR}/lib.sh"
+grep -Fq 'USE_DOCKER_INIT=0' "${SCRIPT_DIR}/deploy.env.example"
 
 echo "Static deployment checks passed"

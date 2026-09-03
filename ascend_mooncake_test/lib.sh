@@ -33,6 +33,8 @@ load_env() {
     die "DEPLOY_MODE must be single or split"
   [[ "${TP_SIZE}" -le "${NPU_COUNT_PER_ROLE}" ]] || \
     die "TP_SIZE cannot exceed NPU_COUNT_PER_ROLE"
+  [[ "${USE_DOCKER_INIT:-0}" == "0" || "${USE_DOCKER_INIT:-0}" == "1" ]] || \
+    die "USE_DOCKER_INIT must be 0 or 1"
 }
 
 require_command() {
@@ -106,7 +108,6 @@ build_docker_args() {
   local role=$1 id npu_smi_path
   DOCKER_ARGS=(
     --detach
-    --init
     --user 0:0
     --name "$(role_name "${role}")"
     --network host
@@ -117,6 +118,10 @@ build_docker_args() {
     --cap-add IPC_LOCK
     --security-opt seccomp=unconfined
   )
+
+  if [[ "${USE_DOCKER_INIT:-0}" == "1" ]]; then
+    DOCKER_ARGS+=(--init)
+  fi
 
   if [[ "${USE_PRIVILEGED}" == "1" ]]; then
     DOCKER_ARGS+=(--privileged)

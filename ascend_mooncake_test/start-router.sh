@@ -12,8 +12,12 @@ name=$(role_name router)
 docker rm -f "${name}" >/dev/null 2>&1 || true
 
 log "Starting PD router on ${ROUTER_IP}:${ROUTER_PORT}"
+ROUTER_INIT_ARGS=()
+if [[ "${USE_DOCKER_INIT:-0}" == "1" ]]; then
+  ROUTER_INIT_ARGS+=(--init)
+fi
 docker run --detach \
-  --init \
+  "${ROUTER_INIT_ARGS[@]}" \
   --user 0:0 \
   --name "${name}" \
   --network host \

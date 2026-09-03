@@ -146,9 +146,9 @@ Compared with `usefulScript/ascend_env/docker_run.sh`:
 | `/dev/socket` | Do not mount | Not present in the CANN/SGLang/Mooncake Ascend references and exposes unspecified host sockets |
 | `slog`, profiling, dump paths | Optional | Enabled with `ENABLE_NPU_DIAGNOSTIC_MOUNTS=1` only for diagnostics |
 | `/tmp:/tmp` | Not mounted | Mooncake PD does not require shared files; avoids cross-container collisions |
-| `--init` | Enabled | Correct signal forwarding and child reaping |
+| `--init` | Optional, default off | Enable with `USE_DOCKER_INIT=1` only when the host includes `docker-init` |
 | `--user 0:0` | Enabled | Makes the base image's root execution convention explicit |
-| `--entrypoint /usr/bin/tini` | Not used | Redundant with `--init` and conflicts with the worker service entrypoint |
+| `--entrypoint /usr/bin/tini` | Not used | The worker entrypoint already uses `exec`; no extra init binary is required for the baseline |
 | `--privileged` | Optional | `USE_PRIVILEGED=1`; explicit devices/capabilities are the safer default |
 
 ## Single-node deployment
@@ -226,10 +226,10 @@ Network requirements for split mode:
   Mooncake's generic RDMA HCA-selection path, not Ascend Direct.
 - `PREFILL_ASCEND_BASE_PORT` and `DECODE_ASCEND_BASE_PORT` are separated to
   avoid same-host P/D port-range collisions.
-- Worker containers use Docker `--init` and run explicitly as root, matching the
-  established Ascend environment startup convention. A separate `tini`
-  entrypoint is not used because `--init` already provides PID 1 signal and
-  child-process handling.
+- Worker containers run explicitly as root. Docker `--init` is disabled by
+  default because some Ascend server Docker packages omit the `docker-init`
+  executable. Set `USE_DOCKER_INIT=1` only after verifying the host supports it;
+  the worker and router commands already use `exec` for direct signal delivery.
 - `/usr/local/Ascend/add-ons` and `/etc/localtime` are mounted read-only when
   present. The whole `/usr/local/sbin` is already mounted, so a second dedicated
   `npu-smi` bind mount is unnecessary.
