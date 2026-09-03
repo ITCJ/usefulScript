@@ -21,6 +21,12 @@ grep -Fq '/dev/devmm_svm' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq '/dev/hisi_hdc' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq 'libibverbs.so.1' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq 'libjemalloc.so.2' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'export LD_PRELOAD=' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'export LD_PRELOAD=' "${SCRIPT_DIR}/container-entrypoint.sh"
+if grep -Fq 'ctypes.CDLL("libjemalloc.so.2")' "${SCRIPT_DIR}/preflight.sh"; then
+  echo "Late jemalloc loading is forbidden on aarch64" >&2
+  exit 1
+fi
 grep -Fq 'NPU_SMI_BIN' "${SCRIPT_DIR}/preflight.sh"
 
 echo "Static deployment checks passed"

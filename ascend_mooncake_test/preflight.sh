@@ -110,7 +110,13 @@ ldconfig -p | grep -F "libjemalloc.so.2" >/dev/null || {
   exit 1
 }
 
-python3 - <<"PY"
+# Jemalloc must be loaded before Python imports torch_npu/Mooncake on aarch64.
+JEMALLOC_SO=$(ldconfig -p | awk '/libjemalloc\.so\.2/{print $NF; exit}')
+[[ -n "${JEMALLOC_SO}" ]] || { echo "Unable to resolve libjemalloc.so.2" >&2; exit 1; }
+export LD_PRELOAD="${JEMALLOC_SO}${LD_PRELOAD:+:${LD_PRELOAD}}"
+echo "Using jemalloc preload: ${JEMALLOC_SO}"
+
+python3 -u -X faulthandler - <<"PY"
 import ctypes
 import importlib.metadata as md
 import os
@@ -120,17 +126,21 @@ import torch_npu
 from mooncake.engine import TransferEngine
 
 ctypes.CDLL("libibverbs.so.1")
-ctypes.CDLL("libjemalloc.so.2")
 expected = int(os.environ["EXPECTED_NPU_COUNT"])
 actual = torch.npu.device_count()
+jemalloc_loaded = any(
+    "libjemalloc.so.2" in line for line in open("/proc/self/maps", encoding="utf-8")
+)
 print("sglang:", getattr(sglang, "__version__", "unknown"))
 print("torch:", torch.__version__)
 print("torch_npu:", torch_npu.__version__)
 print("torch.npu.device_count:", actual)
 print("mooncake-transfer-engine-npu:", md.version("mooncake-transfer-engine-npu"))
 print("libibverbs.so.1 load: OK")
-print("libjemalloc.so.2 load: OK")
+print("libjemalloc.so.2 preloaded:", jemalloc_loaded)
 print("Mooncake TransferEngine import: OK", TransferEngine)
+if not jemalloc_loaded:
+    raise RuntimeError("libjemalloc.so.2 was not preloaded before Python startup")
 if actual < expected:
     raise RuntimeError(f"Expected at least {expected} visible NPUs, but torch_npu found {actual}")
 PY

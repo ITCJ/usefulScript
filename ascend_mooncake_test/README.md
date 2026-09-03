@@ -65,6 +65,12 @@ required for stable teardown: without `libjemalloc.so.2`, importing
 `mooncake.engine` can appear successful and then abort during Python shutdown
 with `corrupted size vs. prev_size`.
 
+On aarch64, jemalloc must also be loaded before torch_npu/CANN consumes the
+process static-TLS reserve. Both the preflight Python process and the SGLang
+worker entrypoint resolve `libjemalloc.so.2` through `ldconfig` and prepend it to
+`LD_PRELOAD` before starting Python. Do not load jemalloc later through
+`ctypes.CDLL`, which fails with `cannot allocate memory in static TLS block`.
+
 APT mirrors are optional and configured in `deploy.env`:
 
 ```bash
@@ -269,6 +275,10 @@ and Ascend transport startup. Common failures:
   `Mooncake TransferEngine import: OK`: `libjemalloc2` is missing from an older
   derived image. Rebuild the updated image on both nodes; do not mask this with
   `os._exit()`.
+- `OSError: libjemalloc.so.2: cannot allocate memory in static TLS block`: an
+  older preflight loaded jemalloc through `ctypes` after importing torch_npu.
+  Update the scripts; the fixed preflight and worker entrypoint use
+  `LD_PRELOAD` before Python starts.
 - `can't get ascend_hal device count`: NPU character devices or host driver
   mounts are missing. The updated `preflight.sh` maps the selected NPUs and
   validates `torch.npu.device_count()` inside the same runtime image.
