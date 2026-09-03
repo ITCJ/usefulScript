@@ -62,6 +62,23 @@ The derived image also installs the runtime RDMA loader packages
 its common engine objects against `libibverbs.so.1` even when the selected data
 transport is Ascend Direct/ADXL.
 
+APT mirrors are optional and configured in `deploy.env`:
+
+```bash
+# x86_64
+APT_MIRROR=https://mirrors.ustc.edu.cn/ubuntu
+APT_SECURITY_MIRROR=
+
+# aarch64/ARM; use this instead of APT_MIRROR
+APT_PORTS_MIRROR=https://mirrors.ustc.edu.cn/ubuntu-ports
+```
+
+`APT_SECURITY_MIRROR` is separate so the official Ubuntu security source can be
+retained. During the build, the Dockerfile rewrites both traditional `.list`
+files and DEB822 `.sources` files, prints the active source URLs, and then runs
+`apt-get update` and package installation. Empty values leave the base image's
+APT configuration unchanged.
+
 ## Topologies
 
 Single A3 server (default):

@@ -27,6 +27,21 @@ else
   log "No build proxy variables detected"
 fi
 
+APT_BUILD_ARGS=()
+APT_MIRROR_NAMES=()
+for apt_mirror_name in APT_MIRROR APT_SECURITY_MIRROR APT_PORTS_MIRROR; do
+  apt_mirror_value=${!apt_mirror_name:-}
+  if [[ -n "${apt_mirror_value}" ]]; then
+    APT_BUILD_ARGS+=(--build-arg "${apt_mirror_name}")
+    APT_MIRROR_NAMES+=("${apt_mirror_name}")
+  fi
+done
+if ((${#APT_MIRROR_NAMES[@]} > 0)); then
+  log "Using APT mirror variables: ${APT_MIRROR_NAMES[*]}"
+else
+  log "No custom APT mirror configured; using the base image sources"
+fi
+
 if ! docker image inspect "${BASE_IMAGE}" >/dev/null 2>&1; then
   log "Base image is not local; pulling ${BASE_IMAGE}"
   if ! docker pull "${BASE_IMAGE}"; then
@@ -37,6 +52,7 @@ fi
 log "Building ${RUNTIME_IMAGE} from ${BASE_IMAGE}"
 docker build \
   "${PROXY_BUILD_ARGS[@]}" \
+  "${APT_BUILD_ARGS[@]}" \
   --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
   --build-arg "MOONCAKE_VERSION=${MOONCAKE_VERSION}" \
   --tag "${RUNTIME_IMAGE}" \
