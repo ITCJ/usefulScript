@@ -111,7 +111,7 @@ ldconfig -p | grep -F "libjemalloc.so.2" >/dev/null || {
 }
 
 # Jemalloc must be loaded before Python imports torch_npu/Mooncake on aarch64.
-JEMALLOC_SO=$(ldconfig -p | awk '/libjemalloc\.so\.2/{print $NF; exit}')
+JEMALLOC_SO=$(ldconfig -p | sed -n '/libjemalloc\.so\.2/{s/.*=>[[:space:]]*//;p;q;}')
 [[ -n "${JEMALLOC_SO}" ]] || { echo "Unable to resolve libjemalloc.so.2" >&2; exit 1; }
 export LD_PRELOAD="${JEMALLOC_SO}${LD_PRELOAD:+:${LD_PRELOAD}}"
 echo "Using jemalloc preload: ${JEMALLOC_SO}"

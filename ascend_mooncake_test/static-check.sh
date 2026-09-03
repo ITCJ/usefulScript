@@ -27,6 +27,12 @@ if grep -Fq 'ctypes.CDLL("libjemalloc.so.2")' "${SCRIPT_DIR}/preflight.sh"; then
   echo "Late jemalloc loading is forbidden on aarch64" >&2
   exit 1
 fi
+if grep -Rq '\$NF' \
+  "${SCRIPT_DIR}/preflight.sh" \
+  "${SCRIPT_DIR}/container-entrypoint.sh"; then
+  echo 'Nested container scripts must not use awk $NF under set -u' >&2
+  exit 1
+fi
 grep -Fq 'NPU_SMI_BIN' "${SCRIPT_DIR}/preflight.sh"
 
 echo "Static deployment checks passed"
