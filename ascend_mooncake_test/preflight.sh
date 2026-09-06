@@ -5,7 +5,15 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 load_env
+# lib.sh enables nounset. This diagnostic script validates values explicitly,
+# then avoids nounset-related failures in older Bash arithmetic loops.
+set +u
 require_command docker
+require_command seq
+
+[[ "${NPU_COUNT_PER_ROLE:-}" =~ ^[0-9]+$ ]] || \
+  die "NPU_COUNT_PER_ROLE must be a positive integer, got: ${NPU_COUNT_PER_ROLE:-unset}"
+((NPU_COUNT_PER_ROLE > 0)) || die "NPU_COUNT_PER_ROLE must be greater than zero"
 
 [[ -d "${MODEL_HOST_PATH}" ]] || die "Model directory does not exist: ${MODEL_HOST_PATH}"
 [[ -d /usr/local/Ascend/driver ]] || die "Host driver directory is missing: /usr/local/Ascend/driver"
@@ -19,11 +27,13 @@ npu_smi_bin=$(find_npu_smi || true)
 log "Host NPU summary"
 "${npu_smi_bin}" info -l
 
-required_max=$((NPU_COUNT_PER_ROLE - 1))
+expected_device_count=${NPU_COUNT_PER_ROLE}
 if [[ "${DEPLOY_MODE}" == "single" ]]; then
-  required_max=$((NPU_COUNT_PER_ROLE * 2 - 1))
+  expected_device_count=$((NPU_COUNT_PER_ROLE * 2))
 fi
-for ((i = 0; i <= required_max; i++)); do
+required_max=$((expected_device_count - 1))
+log "Host device check: expecting ${expected_device_count} davinci devices (/dev/davinci0..${required_max})"
+for i in $(seq 0 "${required_max}"); do
   [[ -e "/dev/davinci${i}" ]] || die "Required device missing: /dev/davinci${i}"
 done
 
@@ -33,7 +43,7 @@ if [[ -z "${hccn_tool_bin}" && -x /usr/local/Ascend/driver/tools/hccn_tool ]]; t
   hccn_tool_bin=/usr/local/Ascend/driver/tools/hccn_tool
 fi
 if [[ -n "${hccn_tool_bin}" ]]; then
-  for ((i = 0; i <= required_max; i++)); do
+  for i in $(seq 0 "${required_max}"); do
     log "NPU ${i} HCCN IP"
     if ! "${hccn_tool_bin}" -i "${i}" -ip -g; then
       log "WARNING: hccn_tool failed for NPU ${i}; verify /etc/hccn.conf and the NPU network manually"
@@ -62,7 +72,7 @@ fi
 for common_device in /dev/davinci_manager /dev/devmm_svm /dev/hisi_hdc; do
   [[ -e "${common_device}" ]] && PREFLIGHT_DOCKER_ARGS+=(--device "${common_device}")
 done
-for ((i = 0; i <= required_max; i++)); do
+for i in $(seq 0 "${required_max}"); do
   PREFLIGHT_DOCKER_ARGS+=(--device "/dev/davinci${i}")
 done
 PREFLIGHT_DOCKER_ARGS+=(
@@ -86,7 +96,7 @@ fi
   PREFLIGHT_DOCKER_ARGS+=(--volume /var/queue_schedule:/var/queue_schedule)
 
 docker run "${PREFLIGHT_DOCKER_ARGS[@]}" \
-  --env "EXPECTED_NPU_COUNT=$((required_max + 1))" \
+  --env "EXPECTED_NPU_COUNT=${expected_device_count}" \
   --entrypoint bash "${RUNTIME_IMAGE}" -lc '
 set -Eeuo pipefail
 # Avoid sourcing vendor set_env.sh under nounset in a validation shell. The

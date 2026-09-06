@@ -16,6 +16,11 @@ if grep -Eq ';[[:space:]]*\\?[[:space:]]*&&' "${SCRIPT_DIR}/Dockerfile"; then
   exit 1
 fi
 grep -Fq 'torch.npu.device_count()' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'expected_device_count=' "${SCRIPT_DIR}/preflight.sh"
+if grep -Fq 'for ((' "${SCRIPT_DIR}/preflight.sh"; then
+  echo 'C-style arithmetic loops are forbidden in preflight.sh; use seq' >&2
+  exit 1
+fi
 grep -Fq '/dev/davinci_manager' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq '/dev/devmm_svm' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq '/dev/hisi_hdc' "${SCRIPT_DIR}/preflight.sh"
