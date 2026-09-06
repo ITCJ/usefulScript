@@ -305,6 +305,23 @@ Run local script/Dockerfile regression checks with:
 ./static-check.sh
 ```
 
+Collect an exited or running worker/router diagnostic bundle before restarting
+or deleting its container:
+
+```bash
+./collect-diagnostics.sh prefill
+./collect-diagnostics.sh decode
+./collect-diagnostics.sh router
+```
+
+The command creates `sglang-mc-<role>-diagnostics-<timestamp>.tar.gz` in the
+current directory. It captures state, exit/OOM information, the actual command,
+mounts, device mappings, Docker/host logs, NPU/HCCN information, image metadata,
+and runtime library/package checks. It deliberately does not export the full
+container environment or copy `deploy.env`, preventing proxy credentials from
+being placed in the archive. Review logs for internal IPs and model paths before
+sharing the bundle.
+
 ## Scope note: Mooncake Store / HiCache
 
 Mooncake PD transfer and Mooncake Store are separate features. This deployment

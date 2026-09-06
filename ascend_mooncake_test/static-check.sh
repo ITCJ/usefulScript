@@ -43,5 +43,6 @@ grep -Fq 'USE_DOCKER_INIT=0' "${SCRIPT_DIR}/deploy.env.example"
 grep -Fq 'Entrypoint started:' "${SCRIPT_DIR}/container-entrypoint.sh"
 grep -Fq 'Container state=' "${SCRIPT_DIR}/start-role.sh"
 grep -Fq 'DOCKER_LOG_DRIVER=json-file' "${SCRIPT_DIR}/deploy.env.example"
+grep -Fq 'Diagnostic archive created:' "${SCRIPT_DIR}/collect-diagnostics.sh"
 
 echo "Static deployment checks passed"
