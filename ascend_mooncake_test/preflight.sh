@@ -99,75 +99,14 @@ fi
   PREFLIGHT_DOCKER_ARGS+=(--volume /etc/ascend_install.info:/etc/ascend_install.info:ro)
 [[ -d /var/queue_schedule ]] && \
   PREFLIGHT_DOCKER_ARGS+=(--volume /var/queue_schedule:/var/queue_schedule)
+PREFLIGHT_DOCKER_ARGS+=(
+  --volume "${SCRIPT_DIR}:/opt/sglang-mooncake-deploy:ro"
+)
 
 docker run "${PREFLIGHT_DOCKER_ARGS[@]}" \
   --env "EXPECTED_NPU_COUNT=${expected_device_count}" \
-  --entrypoint bash "${RUNTIME_IMAGE}" -lc '
-set -Eeuo pipefail
-# Avoid sourcing vendor set_env.sh under nounset in a validation shell. The
-# image already contains CANN; explicitly expose host driver/runtime libraries.
-export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/ascend-toolkit/latest/lib64:${LD_LIBRARY_PATH:-}"
-
-NPU_SMI_BIN=$(command -v npu-smi 2>/dev/null || true)
-if [[ -z "${NPU_SMI_BIN}" && -x /usr/local/bin/npu-smi ]]; then
-  NPU_SMI_BIN=/usr/local/bin/npu-smi
-fi
-if [[ -z "${NPU_SMI_BIN}" && -x /usr/local/sbin/npu-smi ]]; then
-  NPU_SMI_BIN=/usr/local/sbin/npu-smi
-fi
-[[ -n "${NPU_SMI_BIN}" ]] || { echo "npu-smi is not visible inside the container" >&2; exit 1; }
-if "${NPU_SMI_BIN}" info -l; then
-  echo "Container npu-smi summary completed successfully"
-else
-  npu_smi_rc=$?
-  echo "WARNING: container npu-smi returned rc=${npu_smi_rc}; continuing with torch_npu device-count validation"
-fi
-
-ldconfig -p | grep -F "libibverbs.so.1" >/dev/null || {
-  echo "libibverbs.so.1 is missing inside the runtime image; rebuild it with ./build-image.sh" >&2
-  exit 1
-}
-ldconfig -p | grep -F "libjemalloc.so.2" >/dev/null || {
-  echo "libjemalloc.so.2 is missing inside the runtime image; rebuild it with ./build-image.sh" >&2
-  exit 1
-}
-
-# Jemalloc must be loaded before Python imports torch_npu/Mooncake on aarch64.
-JEMALLOC_SO=$(ldconfig -p | sed -n "/libjemalloc\\.so\\.2/{s/.*=>[[:space:]]*//;p;}")
-JEMALLOC_SO=${JEMALLOC_SO%%$'\n'*}
-[[ -n "${JEMALLOC_SO}" ]] || { echo "Unable to resolve libjemalloc.so.2" >&2; exit 1; }
-export LD_PRELOAD="${JEMALLOC_SO}${LD_PRELOAD:+:${LD_PRELOAD}}"
-echo "Using jemalloc preload: ${JEMALLOC_SO}"
-
-python3 -u -X faulthandler - <<"PY"
-import ctypes
-import importlib.metadata as md
-import os
-import sglang
-import torch
-import torch_npu
-from mooncake.engine import TransferEngine
-
-ctypes.CDLL("libibverbs.so.1")
-expected = int(os.environ["EXPECTED_NPU_COUNT"])
-actual = torch.npu.device_count()
-jemalloc_loaded = any(
-    "libjemalloc.so.2" in line for line in open("/proc/self/maps", encoding="utf-8")
-)
-print("sglang:", getattr(sglang, "__version__", "unknown"))
-print("torch:", torch.__version__)
-print("torch_npu:", torch_npu.__version__)
-print("torch.npu.device_count:", actual)
-print("mooncake-transfer-engine-npu:", md.version("mooncake-transfer-engine-npu"))
-print("libibverbs.so.1 load: OK")
-print("libjemalloc.so.2 preloaded:", jemalloc_loaded)
-print("Mooncake TransferEngine import: OK", TransferEngine)
-if not jemalloc_loaded:
-    raise RuntimeError("libjemalloc.so.2 was not preloaded before Python startup")
-if actual < expected:
-    raise RuntimeError(f"Expected at least {expected} visible NPUs, but torch_npu found {actual}")
-PY
-'
+  --entrypoint bash "${RUNTIME_IMAGE}" \
+  /opt/sglang-mooncake-deploy/check-runtime-components.sh
 
 if [[ "${DEPLOY_MODE}" == "split" ]]; then
   local_range=$(sysctl -n net.ipv4.ip_local_port_range 2>/dev/null || true)

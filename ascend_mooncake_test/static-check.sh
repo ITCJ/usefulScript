@@ -15,27 +15,33 @@ if grep -Eq ';[[:space:]]*\\?[[:space:]]*&&' "${SCRIPT_DIR}/Dockerfile"; then
   echo "Invalid Dockerfile shell sequence: '; &&'" >&2
   exit 1
 fi
-grep -Fq 'torch.npu.device_count()' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'torch.npu.device_count()' "${SCRIPT_DIR}/check-runtime-components.sh"
+grep -Fq '[runtime-check] passed' "${SCRIPT_DIR}/check-runtime-components.sh"
 grep -Fq 'expected_device_count=' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq 'continuing with device-node and torch_npu validation' "${SCRIPT_DIR}/preflight.sh"
-grep -Fq 'continuing with torch_npu device-count validation' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'continuing with torch_npu validation' "${SCRIPT_DIR}/check-runtime-components.sh"
 if grep -Fq 'for ((' "${SCRIPT_DIR}/preflight.sh"; then
   echo 'C-style arithmetic loops are forbidden in preflight.sh; use seq' >&2
+  exit 1
+fi
+if grep -Fq -- "-lc '" "${SCRIPT_DIR}/preflight.sh"; then
+  echo 'Inline bash -lc payloads are forbidden in preflight.sh' >&2
   exit 1
 fi
 grep -Fq '/dev/davinci_manager' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq '/dev/devmm_svm' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq '/dev/hisi_hdc' "${SCRIPT_DIR}/preflight.sh"
-grep -Fq 'libibverbs.so.1' "${SCRIPT_DIR}/preflight.sh"
-grep -Fq 'libjemalloc.so.2' "${SCRIPT_DIR}/preflight.sh"
-grep -Fq 'export LD_PRELOAD=' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'libibverbs.so.1' "${SCRIPT_DIR}/check-runtime-components.sh"
+grep -Fq 'libjemalloc.so.2' "${SCRIPT_DIR}/check-runtime-components.sh"
+grep -Fq 'export LD_PRELOAD=' "${SCRIPT_DIR}/check-runtime-components.sh"
 grep -Fq 'export LD_PRELOAD=' "${SCRIPT_DIR}/container-entrypoint.sh"
-if grep -Fq 'ctypes.CDLL("libjemalloc.so.2")' "${SCRIPT_DIR}/preflight.sh"; then
+if grep -Fq 'ctypes.CDLL("libjemalloc.so.2")' "${SCRIPT_DIR}/check-runtime-components.sh"; then
   echo "Late jemalloc loading is forbidden on aarch64" >&2
   exit 1
 fi
 if grep -Rq '\$NF' \
   "${SCRIPT_DIR}/preflight.sh" \
+  "${SCRIPT_DIR}/check-runtime-components.sh" \
   "${SCRIPT_DIR}/container-entrypoint.sh"; then
   echo 'Nested container scripts must not use awk $NF under set -u' >&2
   exit 1
@@ -50,7 +56,7 @@ if grep -Eq 'libjemalloc.*p;q;' \
   echo "Early sed quit can trigger SIGPIPE under pipefail" >&2
   exit 1
 fi
-grep -Fq 'NPU_SMI_BIN' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'npu_smi_bin=' "${SCRIPT_DIR}/check-runtime-components.sh"
 grep -Fq 'USE_DOCKER_INIT' "${SCRIPT_DIR}/lib.sh"
 grep -Fq 'USE_DOCKER_INIT=0' "${SCRIPT_DIR}/deploy.env.example"
 grep -Fq 'Entrypoint started:' "${SCRIPT_DIR}/container-entrypoint.sh"
