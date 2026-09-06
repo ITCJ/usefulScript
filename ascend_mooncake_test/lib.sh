@@ -119,8 +119,26 @@ append_existing_device() {
   fi
 }
 
+append_ascend_devices() {
+  local path
+  ASCEND_DEVICE_ARGS=()
+  for path in \
+    /dev/davinci_manager \
+    /dev/devmm_svm \
+    /dev/hisi_hdc; do
+    if [[ -e "${path}" ]]; then
+      ASCEND_DEVICE_ARGS+=(--device "${path}")
+    fi
+  done
+  for path in /dev/davinci[0-9]*; do
+    if [[ -e "${path}" ]]; then
+      ASCEND_DEVICE_ARGS+=(--device "${path}")
+    fi
+  done
+}
+
 build_docker_args() {
-  local role=$1 id npu_smi_path
+  local role=$1 npu_smi_path
   DOCKER_ARGS=(
     --detach
     --user 0:0
@@ -145,13 +163,8 @@ build_docker_args() {
     DOCKER_ARGS+=(--privileged)
   fi
 
-  append_existing_device /dev/davinci_manager
-  append_existing_device /dev/devmm_svm
-  append_existing_device /dev/hisi_hdc
-  while IFS= read -r id; do
-    [[ -e "/dev/davinci${id}" ]] || die "Missing /dev/davinci${id} for role ${role}"
-    DOCKER_ARGS+=(--device "/dev/davinci${id}")
-  done < <(role_npu_ids "${role}")
+  append_ascend_devices
+  DOCKER_ARGS+=("${ASCEND_DEVICE_ARGS[@]}")
 
   [[ -d /usr/local/Ascend/driver ]] && \
     DOCKER_ARGS+=(--volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro)
@@ -228,6 +241,8 @@ build_mooncake_service_docker_args() {
   if [[ "${USE_PRIVILEGED:-0}" == "1" ]]; then
     MOONCAKE_SERVICE_DOCKER_ARGS+=(--privileged)
   fi
+  append_ascend_devices
+  MOONCAKE_SERVICE_DOCKER_ARGS+=("${ASCEND_DEVICE_ARGS[@]}")
   [[ -d /usr/local/Ascend/driver ]] && \
     MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro)
   [[ -d /usr/local/Ascend/firmware ]] && \

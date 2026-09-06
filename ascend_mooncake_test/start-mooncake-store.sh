@@ -38,12 +38,7 @@ name=$(role_name mooncake-store)
 mkdir -p "${LOG_DIR}"
 docker rm -f "${name}" >/dev/null 2>&1 || true
 build_mooncake_service_docker_args "${name}"
-for common_device in /dev/davinci_manager /dev/devmm_svm /dev/hisi_hdc; do
-  [[ -e "${common_device}" ]] && \
-    MOONCAKE_SERVICE_DOCKER_ARGS+=(--device "${common_device}")
-done
 MOONCAKE_SERVICE_DOCKER_ARGS+=(
-  --device "/dev/davinci${MOONCAKE_STORE_NPU_ID}"
   --env "ASCEND_RT_VISIBLE_DEVICES=${MOONCAKE_STORE_NPU_ID}"
   --env "MOONCAKE_STORE_LOGICAL_NPU_ID=0"
 )
