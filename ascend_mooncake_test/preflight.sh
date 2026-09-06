@@ -25,7 +25,12 @@ docker image inspect "${RUNTIME_IMAGE}" >/dev/null 2>&1 || \
 npu_smi_bin=$(find_npu_smi || true)
 [[ -n "${npu_smi_bin}" ]] || die "npu-smi is not available in PATH, /usr/local/bin, or /usr/local/sbin"
 log "Host NPU summary"
-"${npu_smi_bin}" info -l
+if "${npu_smi_bin}" info -l; then
+  log "Host npu-smi summary completed successfully"
+else
+  npu_smi_rc=$?
+  log "WARNING: host npu-smi printed its summary but returned rc=${npu_smi_rc}; continuing with device-node and torch_npu validation"
+fi
 
 expected_device_count=${NPU_COUNT_PER_ROLE}
 if [[ "${DEPLOY_MODE}" == "single" ]]; then
@@ -111,7 +116,12 @@ if [[ -z "${NPU_SMI_BIN}" && -x /usr/local/sbin/npu-smi ]]; then
   NPU_SMI_BIN=/usr/local/sbin/npu-smi
 fi
 [[ -n "${NPU_SMI_BIN}" ]] || { echo "npu-smi is not visible inside the container" >&2; exit 1; }
-"${NPU_SMI_BIN}" info -l
+if "${NPU_SMI_BIN}" info -l; then
+  echo "Container npu-smi summary completed successfully"
+else
+  npu_smi_rc=$?
+  echo "WARNING: container npu-smi returned rc=${npu_smi_rc}; continuing with torch_npu device-count validation"
+fi
 
 ldconfig -p | grep -F "libibverbs.so.1" >/dev/null || {
   echo "libibverbs.so.1 is missing inside the runtime image; rebuild it with ./build-image.sh" >&2

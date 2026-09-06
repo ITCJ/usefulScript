@@ -17,6 +17,8 @@ if grep -Eq ';[[:space:]]*\\?[[:space:]]*&&' "${SCRIPT_DIR}/Dockerfile"; then
 fi
 grep -Fq 'torch.npu.device_count()' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq 'expected_device_count=' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'continuing with device-node and torch_npu validation' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'continuing with torch_npu device-count validation' "${SCRIPT_DIR}/preflight.sh"
 if grep -Fq 'for ((' "${SCRIPT_DIR}/preflight.sh"; then
   echo 'C-style arithmetic loops are forbidden in preflight.sh; use seq' >&2
   exit 1
