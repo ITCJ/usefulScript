@@ -118,7 +118,7 @@ read-write by default:
 ```text
 /home/tcj
 /home/caofei
-/home/cryang_wx15110221
+/home/cryang_wx1511021
 ```
 
 They are configured by the comma-separated `REQUIRED_HOME_MOUNTS` setting.
@@ -131,7 +131,7 @@ Compared with `usefulScript/ascend_env/docker_run.sh`:
 
 | Item | Decision | Reason |
 | --- | --- | --- |
-| `/home/tcj`, `/home/caofei`, `/home/cryang_wx15110221` | Worker required, read-write | Requested shared model/workspace access; validated before startup |
+| `/home/tcj`, `/home/caofei`, `/home/cryang_wx1511021` | Worker required, read-write | Requested shared model/workspace access; validated before startup |
 | `/usr/local/Ascend/driver` | Required, read-only | Host NPU driver runtime |
 | `/usr/local/Ascend/driver/lib64` | Covered by driver mount | Do not add a duplicate child bind mount |
 | `/usr/local/Ascend/driver/version.info` | Covered by driver mount | Do not add a duplicate child bind mount |
