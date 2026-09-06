@@ -90,11 +90,48 @@ for network_env_name in \
   fi
 done
 
+container_name=$(role_name "${ROLE}")
 log "Starting ${ROLE}: NPU base=${BASE_NPU}, TP=${TP_SIZE}, endpoint=${HOST_IP}:${HTTP_PORT}"
 docker run "${DOCKER_ARGS[@]}" \
   "${RUNTIME_IMAGE}" \
   bash /opt/sglang-mooncake-deploy/container-entrypoint.sh \
   "${ROLE}" "${SERVER_ARGS[@]}"
 
-log "Container started: $(role_name "${ROLE}")"
-log "Follow logs: docker logs -f $(role_name "${ROLE}")"
+for _ in 1 2 3; do
+  sleep 1
+  container_state=$(docker inspect --format '{{.State.Status}}' "${container_name}")
+  [[ "${container_state}" == "running" ]] || break
+done
+
+container_state=$(docker inspect --format '{{.State.Status}}' "${container_name}")
+container_exit_code=$(docker inspect --format '{{.State.ExitCode}}' "${container_name}")
+container_error=$(docker inspect --format '{{.State.Error}}' "${container_name}")
+container_path=$(docker inspect --format '{{.Path}}' "${container_name}")
+container_args=$(docker inspect --format '{{json .Args}}' "${container_name}")
+container_log_driver=$(docker inspect --format '{{.HostConfig.LogConfig.Type}}' "${container_name}")
+
+log "Container state=${container_state} exit_code=${container_exit_code} log_driver=${container_log_driver}"
+log "Container command: ${container_path} ${container_args}"
+
+if [[ "${container_state}" != "running" ]]; then
+  [[ -n "${container_error}" ]] && log "Docker state error: ${container_error}"
+  echo "----- docker logs: ${container_name} -----" >&2
+  docker logs --tail 200 "${container_name}" >&2 || true
+  echo "----- host log: ${LOG_DIR}/${ROLE}.log -----" >&2
+  if [[ -f "${LOG_DIR}/${ROLE}.log" ]]; then
+    tail -n 200 "${LOG_DIR}/${ROLE}.log" >&2 || true
+  else
+    echo "Host log file was not created" >&2
+  fi
+  die "Container ${container_name} exited during startup"
+fi
+
+if [[ -s "${LOG_DIR}/${ROLE}.log" ]]; then
+  log "Initial host log:"
+  tail -n 20 "${LOG_DIR}/${ROLE}.log" || true
+else
+  log "WARNING: ${LOG_DIR}/${ROLE}.log is still empty; inspect the container command above"
+fi
+
+log "Container started and remains running: ${container_name}"
+log "Follow logs: docker logs -f ${container_name}"

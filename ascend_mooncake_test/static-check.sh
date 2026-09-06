@@ -40,5 +40,8 @@ fi
 grep -Fq 'NPU_SMI_BIN' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq 'USE_DOCKER_INIT' "${SCRIPT_DIR}/lib.sh"
 grep -Fq 'USE_DOCKER_INIT=0' "${SCRIPT_DIR}/deploy.env.example"
+grep -Fq 'Entrypoint started:' "${SCRIPT_DIR}/container-entrypoint.sh"
+grep -Fq 'Container state=' "${SCRIPT_DIR}/start-role.sh"
+grep -Fq 'DOCKER_LOG_DRIVER=json-file' "${SCRIPT_DIR}/deploy.env.example"
 
 echo "Static deployment checks passed"

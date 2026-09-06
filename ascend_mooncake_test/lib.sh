@@ -113,6 +113,9 @@ build_docker_args() {
     --network host
     --ipc host
     --shm-size "${SHM_SIZE}"
+    --log-driver "${DOCKER_LOG_DRIVER:-json-file}"
+    --log-opt "max-size=${DOCKER_LOG_MAX_SIZE:-100m}"
+    --log-opt "max-file=${DOCKER_LOG_MAX_FILE:-3}"
     --ulimit memlock=-1:-1
     --ulimit stack=67108864:67108864
     --cap-add IPC_LOCK

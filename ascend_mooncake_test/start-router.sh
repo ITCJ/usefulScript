@@ -21,6 +21,9 @@ docker run --detach \
   --user 0:0 \
   --name "${name}" \
   --network host \
+  --log-driver "${DOCKER_LOG_DRIVER:-json-file}" \
+  --log-opt "max-size=${DOCKER_LOG_MAX_SIZE:-100m}" \
+  --log-opt "max-file=${DOCKER_LOG_MAX_FILE:-3}" \
   --volume "${LOG_DIR}:/logs" \
   --entrypoint bash \
   "${RUNTIME_IMAGE}" -lc \

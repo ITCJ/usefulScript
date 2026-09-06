@@ -4,6 +4,14 @@ set -Eeuo pipefail
 ROLE=${1:?role is required}
 shift
 
+# Start file and Docker logging before any environment/library setup so early
+# entrypoint failures are observable. Python is also forced to flush output.
+mkdir -p /logs
+touch "/logs/${ROLE}.log"
+exec > >(tee -a "/logs/${ROLE}.log") 2>&1
+export PYTHONUNBUFFERED=1
+echo "[$(date '+%F %T')] Entrypoint started: role=${ROLE} pid=$$"
+
 source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
 source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
 
@@ -26,5 +34,5 @@ export SGLANG_DISAGGREGATION_WAITING_TIMEOUT=${SGLANG_DISAGGREGATION_WAITING_TIM
 
 # Do not pass --disaggregation-ib-device: Ascend Direct installs its own
 # transport and does not use the CUDA/RDMA HCA-selection path.
-exec > >(tee "/logs/${ROLE}.log") 2>&1
-exec python3 -m sglang.launch_server "$@"
+echo "[$(date '+%F %T')] Launching SGLang ${ROLE} server"
+exec python3 -u -m sglang.launch_server "$@"
