@@ -11,6 +11,10 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
 load_env
+# lib.sh enables nounset for normal deployment scripts. This preflight performs
+# explicit presence/type validation below, so disable nounset to avoid old Bash
+# indirect-expansion edge cases.
+set +u
 require_command docker
 require_command timeout
 
@@ -25,7 +29,8 @@ for required_name in \
   HICACHE_L2_GB_PER_RANK \
   TP_SIZE \
   MOONCAKE_L3_HOST_RESERVE_GB; do
-  [[ -n "${!required_name:-}" ]] || die "Missing L3 configuration: ${required_name}"
+  required_value=$(printenv "${required_name}" 2>/dev/null || true)
+  [[ -n "${required_value}" ]] || die "Missing L3 configuration: ${required_name}"
 done
 
 for numeric_name in \
@@ -36,7 +41,7 @@ for numeric_name in \
   HICACHE_L2_GB_PER_RANK \
   TP_SIZE \
   MOONCAKE_L3_HOST_RESERVE_GB; do
-  numeric_value=${!numeric_name}
+  numeric_value=$(printenv "${numeric_name}" 2>/dev/null || true)
   [[ "${numeric_value}" =~ ^[0-9]+$ ]] || \
     die "${numeric_name} must be a non-negative integer, got: ${numeric_value}"
 done

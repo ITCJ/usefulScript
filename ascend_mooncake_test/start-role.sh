@@ -118,7 +118,7 @@ for network_env_name in \
   HCCL_RDMA_RETRY_CNT \
   ASCEND_CONNECT_TIMEOUT \
   ASCEND_TRANSFER_TIMEOUT; do
-  network_env_value=${!network_env_name:-}
+  network_env_value=$(printenv "${network_env_name}" 2>/dev/null || true)
   if [[ -n "${network_env_value}" ]]; then
     DOCKER_ARGS+=(--env "${network_env_name}=${network_env_value}")
   fi

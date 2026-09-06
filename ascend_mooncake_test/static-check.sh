@@ -68,6 +68,10 @@ if grep -Fq 'source /usr/local/Ascend/ascend-toolkit/set_env.sh' \
   echo 'Preflight scripts must not directly source vendor set_env.sh' >&2
   exit 1
 fi
+if grep -Rq '\${!' "${SCRIPT_DIR}" --include='*.sh' --exclude='static-check.sh'; then
+  echo 'Bash indirect variable expansion is forbidden; use printenv instead' >&2
+  exit 1
+fi
 grep -Fq 'store-prefill' "${SCRIPT_DIR}/collect-diagnostics.sh"
 grep -Fq 'start-l3-node.sh prefill' "${SCRIPT_DIR}/QUICKSTART_L3.md"
 grep -Fq 'start-l3-node.sh decode' "${SCRIPT_DIR}/QUICKSTART_L3.md"

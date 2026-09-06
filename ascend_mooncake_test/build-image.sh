@@ -12,7 +12,7 @@ PROXY_NAMES=()
 for proxy_name in \
   HTTP_PROXY HTTPS_PROXY NO_PROXY ALL_PROXY \
   http_proxy https_proxy no_proxy all_proxy; do
-  proxy_value=${!proxy_name:-}
+  proxy_value=$(printenv "${proxy_name}" 2>/dev/null || true)
   if [[ -n "${proxy_value}" ]]; then
     # Passing only the variable name makes Docker read its value from the
     # current shell without placing the credential-bearing URL in argv/logs.
@@ -30,7 +30,7 @@ fi
 APT_BUILD_ARGS=()
 APT_MIRROR_NAMES=()
 for apt_mirror_name in APT_MIRROR APT_SECURITY_MIRROR APT_PORTS_MIRROR; do
-  apt_mirror_value=${!apt_mirror_name:-}
+  apt_mirror_value=$(printenv "${apt_mirror_name}" 2>/dev/null || true)
   if [[ -n "${apt_mirror_value}" ]]; then
     APT_BUILD_ARGS+=(--build-arg "${apt_mirror_name}")
     APT_MIRROR_NAMES+=("${apt_mirror_name}")
