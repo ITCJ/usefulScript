@@ -77,6 +77,8 @@ grep -Fq 'ASCEND_RT_VISIBLE_DEVICES=${MOONCAKE_STORE_NPU_ID}' "${SCRIPT_DIR}/sta
 grep -Fq 'torch.npu.set_device' "${SCRIPT_DIR}/run-mooncake-store.py"
 grep -Fq 'run-mooncake-store.py' "${SCRIPT_DIR}/mooncake-service-entrypoint.sh"
 grep -Fq 'append_ascend_devices' "${SCRIPT_DIR}/lib.sh"
+grep -Fq 'ASCEND_RT_VISIBLE_DEVICES=' "${SCRIPT_DIR}/start-role.sh"
+grep -Fq 'ASCEND_RT_VISIBLE_DEVICES=' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq 'Mooncake L3 preflight passed' "${SCRIPT_DIR}/preflight-mooncake-l3.sh"
 grep -Fq '[component-check] passed' "${SCRIPT_DIR}/check-mooncake-l3-components.sh"
 grep -Fq 'L3 check phase 1/3' "${SCRIPT_DIR}/preflight-mooncake-l3.sh"

@@ -101,6 +101,7 @@ fi
   PREFLIGHT_DOCKER_ARGS+=(--volume /var/queue_schedule:/var/queue_schedule)
 PREFLIGHT_DOCKER_ARGS+=(
   --volume "${SCRIPT_DIR}:/opt/sglang-mooncake-deploy:ro"
+  --env "ASCEND_RT_VISIBLE_DEVICES=$(seq -s, 0 "${required_max}")"
 )
 
 docker run "${PREFLIGHT_DOCKER_ARGS[@]}" \
