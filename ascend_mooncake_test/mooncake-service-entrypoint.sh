@@ -26,18 +26,36 @@ export PYTHONUNBUFFERED=1
 echo "[$(date '+%F %T')] Mooncake ${SERVICE} entrypoint started: role=${ROLE:-none} pid=$$"
 
 source_optional_env() {
-  local env_file=$1 source_rc
+  local env_file=$1 env_snapshot source_rc
   [[ -f "${env_file}" ]] || return 0
   echo "[$(date '+%F %T')] Loading environment: ${env_file}"
-  set +u
+  env_snapshot=$(mktemp /tmp/mooncake-vendor-env.XXXXXX)
   set +e
-  # shellcheck disable=SC1090
-  source "${env_file}"
+  bash --noprofile --norc -c '
+set +u
+set +e
+source "$1" >/dev/null
+source_rc=$?
+if ((source_rc == 0)); then
+  export -p
+fi
+exit "${source_rc}"
+' _ "${env_file}" >"${env_snapshot}"
   source_rc=$?
-  set -Eeuo pipefail
+  set -e
   if ((source_rc != 0)); then
     echo "[$(date '+%F %T')] WARNING: environment script returned ${source_rc}: ${env_file}"
+  elif [[ -s "${env_snapshot}" ]]; then
+    set +u
+    # shellcheck disable=SC1090
+    source "${env_snapshot}"
+    set -u
+    echo "[$(date '+%F %T')] Environment loaded: ${env_file}"
+  else
+    echo "[$(date '+%F %T')] WARNING: environment script produced no exported environment: ${env_file}"
   fi
+  rm -f -- "${env_snapshot}"
+  set -Eeuo pipefail
 }
 
 source_optional_env /usr/local/Ascend/ascend-toolkit/set_env.sh

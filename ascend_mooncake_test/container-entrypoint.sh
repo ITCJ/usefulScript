@@ -13,27 +13,44 @@ export PYTHONUNBUFFERED=1
 echo "[$(date '+%F %T')] Entrypoint started: role=${ROLE} pid=$$"
 
 source_optional_env() {
-  local env_file=$1 source_rc
+  local env_file=$1 env_snapshot source_rc
   if [[ ! -f "${env_file}" ]]; then
     echo "[$(date '+%F %T')] Optional environment file not found: ${env_file}"
     return 0
   fi
 
   echo "[$(date '+%F %T')] Loading environment: ${env_file}"
-  # Vendor environment scripts commonly expand variables that are optional.
-  # Disable nounset/errexit only while sourcing, then restore strict mode.
-  set +u
+  # Isolate vendor scripts in a child Bash. Some versions enable nounset
+  # internally and reference optional variables such as $n, which would
+  # otherwise terminate the PID 1 entrypoint. Import exports only on success.
+  env_snapshot=$(mktemp /tmp/sglang-vendor-env.XXXXXX)
   set +e
-  # shellcheck disable=SC1090
-  source "${env_file}"
+  bash --noprofile --norc -c '
+set +u
+set +e
+source "$1" >/dev/null
+source_rc=$?
+if ((source_rc == 0)); then
+  export -p
+fi
+exit "${source_rc}"
+' _ "${env_file}" >"${env_snapshot}"
   source_rc=$?
-  set -Eeuo pipefail
+  set -e
 
   if ((source_rc != 0)); then
     echo "[$(date '+%F %T')] WARNING: environment script returned ${source_rc}: ${env_file}"
-  else
+  elif [[ -s "${env_snapshot}" ]]; then
+    set +u
+    # shellcheck disable=SC1090
+    source "${env_snapshot}"
+    set -u
     echo "[$(date '+%F %T')] Environment loaded: ${env_file}"
+  else
+    echo "[$(date '+%F %T')] WARNING: environment script produced no exported environment: ${env_file}"
   fi
+  rm -f -- "${env_snapshot}"
+  set -Eeuo pipefail
 }
 
 source_optional_env /usr/local/Ascend/ascend-toolkit/set_env.sh
