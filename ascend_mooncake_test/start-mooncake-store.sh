@@ -15,6 +15,10 @@ require_command docker
 require_command timeout
 
 [[ "${ENABLE_MOONCAKE_L3:-0}" == "1" ]] || die "Set ENABLE_MOONCAKE_L3=1 first"
+[[ "${MOONCAKE_STORE_NPU_ID:-}" =~ ^[0-9]+$ ]] || \
+  die "MOONCAKE_STORE_NPU_ID must be a non-negative integer"
+[[ -e "/dev/davinci${MOONCAKE_STORE_NPU_ID}" ]] || \
+  die "Store NPU device does not exist: /dev/davinci${MOONCAKE_STORE_NPU_ID}"
 if [[ "${ROLE}" == "prefill" ]]; then
   LOCAL_IP=${PREFILL_IP}
 else
@@ -34,6 +38,15 @@ name=$(role_name mooncake-store)
 mkdir -p "${LOG_DIR}"
 docker rm -f "${name}" >/dev/null 2>&1 || true
 build_mooncake_service_docker_args "${name}"
+for common_device in /dev/davinci_manager /dev/devmm_svm /dev/hisi_hdc; do
+  [[ -e "${common_device}" ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--device "${common_device}")
+done
+MOONCAKE_SERVICE_DOCKER_ARGS+=(
+  --device "/dev/davinci${MOONCAKE_STORE_NPU_ID}"
+  --env "ASCEND_RT_VISIBLE_DEVICES=${MOONCAKE_STORE_NPU_ID}"
+  --env "MOONCAKE_STORE_LOGICAL_NPU_ID=0"
+)
 
 log "Starting ${ROLE} Mooncake Store: ${MOONCAKE_STORE_GB}GB DRAM at ${LOCAL_IP}"
 docker run "${MOONCAKE_SERVICE_DOCKER_ARGS[@]}" \

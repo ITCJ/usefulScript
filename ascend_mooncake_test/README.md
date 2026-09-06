@@ -216,6 +216,7 @@ MOONCAKE_METADATA_PORT=8080
 MOONCAKE_STORE_PORT=8081
 MOONCAKE_STORE_GB=16
 MOONCAKE_STORE_PROTOCOL=tcp
+MOONCAKE_STORE_NPU_ID=0
 HICACHE_L2_GB_PER_RANK=1
 ENABLE_DECODE_HICACHE=1
 ENABLE_DECODE_KV_OFFLOAD=1
@@ -225,6 +226,14 @@ The Store services contribute the DRAM pool, so both SGLang clients pass
 `global_segment_size=0`. `start-role.sh` automatically adds HiCache parameters
 when `ENABLE_MOONCAKE_L3=1`. Decode also enables PD decode radix cache and
 incremental KV offload to L3.
+
+The installed Store wheel is the Ascend NPU build. Even when Store payload uses
+`tcp`, its native components need a valid CANN device context on A3. Each Store
+container therefore maps one host NPU (default `/dev/davinci0`) plus the common
+Ascend management devices, restricts visibility with
+`ASCEND_RT_VISIBLE_DEVICES`, and calls `torch.npu.set_device(0)` in the same
+long-running Python process before importing Mooncake Store. Store payload still
+uses Host DRAM; this NPU context is only for the Ascend-enabled runtime.
 
 Run on the Prefill node first:
 

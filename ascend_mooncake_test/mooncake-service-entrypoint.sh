@@ -91,5 +91,5 @@ fi
 : "${MOONCAKE_STORE_PORT:?MOONCAKE_STORE_PORT is required}"
 
 echo "[$(date '+%F %T')] Launching Mooncake Store role=${ROLE} host=${MOONCAKE_LOCAL_HOSTNAME} segment=${MOONCAKE_GLOBAL_SEGMENT_SIZE} protocol=${MOONCAKE_PROTOCOL:-tcp}"
-exec python3 -u -m mooncake.mooncake_store_service \
+exec python3 -u /opt/sglang-mooncake-deploy/run-mooncake-store.py \
   --port="${MOONCAKE_STORE_PORT}"

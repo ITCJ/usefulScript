@@ -26,6 +26,7 @@ for required_name in \
   MOONCAKE_STORE_PORT \
   MOONCAKE_STORE_GB \
   MOONCAKE_STORE_PROTOCOL \
+  MOONCAKE_STORE_NPU_ID \
   HICACHE_L2_GB_PER_RANK \
   TP_SIZE \
   MOONCAKE_L3_HOST_RESERVE_GB; do
@@ -38,6 +39,7 @@ for numeric_name in \
   MOONCAKE_METADATA_PORT \
   MOONCAKE_STORE_PORT \
   MOONCAKE_STORE_GB \
+  MOONCAKE_STORE_NPU_ID \
   HICACHE_L2_GB_PER_RANK \
   TP_SIZE \
   MOONCAKE_L3_HOST_RESERVE_GB; do
@@ -54,6 +56,8 @@ done
   die "Mooncake 0.3.11.post1 master script currently expects MOONCAKE_MASTER_PORT=50051"
 [[ "${HICACHE_L2_GB_PER_RANK}" -ge 1 ]] || die "HICACHE_L2_GB_PER_RANK must be at least 1"
 [[ "${MOONCAKE_STORE_GB}" -ge 1 ]] || die "MOONCAKE_STORE_GB must be at least 1"
+[[ -e "/dev/davinci${MOONCAKE_STORE_NPU_ID}" ]] || \
+  die "Store NPU device does not exist: /dev/davinci${MOONCAKE_STORE_NPU_ID}"
 
 log "L3 check phase 1/3: validating Host DRAM"
 available_kb=$(sed -n 's/^MemAvailable:[[:space:]]*\([0-9][0-9]*\)[[:space:]]*kB.*/\1/p' /proc/meminfo)
@@ -71,7 +75,13 @@ L3_IMPORT_DOCKER_ARGS=(--rm --entrypoint bash)
   L3_IMPORT_DOCKER_ARGS+=(--volume /usr/local/Ascend/add-ons:/usr/local/Ascend/add-ons:ro)
 L3_IMPORT_DOCKER_ARGS+=(
   --volume "${SCRIPT_DIR}:/opt/sglang-mooncake-deploy:ro"
+  --device "/dev/davinci${MOONCAKE_STORE_NPU_ID}"
+  --env "ASCEND_RT_VISIBLE_DEVICES=${MOONCAKE_STORE_NPU_ID}"
+  --env "MOONCAKE_STORE_LOGICAL_NPU_ID=0"
 )
+for common_device in /dev/davinci_manager /dev/devmm_svm /dev/hisi_hdc; do
+  [[ -e "${common_device}" ]] && L3_IMPORT_DOCKER_ARGS+=(--device "${common_device}")
+done
 
 log "L3 check phase 2/3: validating Mooncake Master/Store components"
 docker run "${L3_IMPORT_DOCKER_ARGS[@]}" "${RUNTIME_IMAGE}" \
