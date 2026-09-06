@@ -81,7 +81,7 @@ for i in $(seq 0 "${required_max}"); do
   PREFLIGHT_DOCKER_ARGS+=(--device "/dev/davinci${i}")
 done
 PREFLIGHT_DOCKER_ARGS+=(
-  --volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro
+  --volume /usr/local/Ascend/driver:/usr/local/Ascend/driver
   --volume /etc/hccn.conf:/etc/hccn.conf:ro
 )
 [[ -d /usr/local/Ascend/firmware ]] && \

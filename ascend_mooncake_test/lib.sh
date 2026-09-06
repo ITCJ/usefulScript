@@ -167,7 +167,7 @@ build_docker_args() {
   DOCKER_ARGS+=("${ASCEND_DEVICE_ARGS[@]}")
 
   [[ -d /usr/local/Ascend/driver ]] && \
-    DOCKER_ARGS+=(--volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro)
+    DOCKER_ARGS+=(--volume /usr/local/Ascend/driver:/usr/local/Ascend/driver)
   [[ -d /usr/local/Ascend/firmware ]] && \
     DOCKER_ARGS+=(--volume /usr/local/Ascend/firmware:/usr/local/Ascend/firmware:ro)
   [[ -d /usr/local/Ascend/add-ons ]] && \
@@ -244,7 +244,7 @@ build_mooncake_service_docker_args() {
   append_ascend_devices
   MOONCAKE_SERVICE_DOCKER_ARGS+=("${ASCEND_DEVICE_ARGS[@]}")
   [[ -d /usr/local/Ascend/driver ]] && \
-    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro)
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/Ascend/driver:/usr/local/Ascend/driver)
   [[ -d /usr/local/Ascend/firmware ]] && \
     MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/Ascend/firmware:/usr/local/Ascend/firmware:ro)
   [[ -d /usr/local/Ascend/add-ons ]] && \
