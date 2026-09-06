@@ -6,7 +6,7 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 source "${SCRIPT_DIR}/lib.sh"
 load_env
 
-for role in router decode prefill; do
+for role in router decode prefill mooncake-store mooncake-master; do
   name=$(role_name "${role}")
   if docker inspect "${name}" >/dev/null 2>&1; then
     log "Stopping ${name}"

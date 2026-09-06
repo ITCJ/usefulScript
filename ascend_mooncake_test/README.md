@@ -1,5 +1,7 @@
 # SGLang v0.5.16 + Mooncake on Ascend A3
 
+双机 L3 DRAM Pool最简运行步骤见 `QUICKSTART_L3.md`。
+
 This package deploys SGLang Prefill/Decode disaggregation on Ascend A3 with
 Mooncake Transfer Engine as the KV transfer layer.
 
@@ -90,7 +92,7 @@ APT configuration unchanged.
 
 ## Topologies
 
-Single A3 server (default):
+Single A3 server (optional; TP16 requires 32 NPUs):
 
 ```text
 client -> router:8000
@@ -99,7 +101,7 @@ client -> router:8000
                     Mooncake Ascend Direct KV transfer
 ```
 
-Two A3 servers:
+Two A3 servers (default):
 
 ```text
 router -> prefill node:30000/8998, NPU 0-15
@@ -182,6 +184,88 @@ DECODE_IP=10.10.10.12
 HCCL_SOCKET_IFNAME=enp189s0f0
 GLOO_SOCKET_IFNAME=enp189s0f0
 ```
+
+### Two-node Mooncake L3 DRAM pool
+
+The default L3 topology runs Mooncake Master and embedded metadata on the
+Prefill A3, plus one Store contributor on each A3:
+
+```text
+Prefill A3
+  Mooncake Master       :50051
+  Embedded Metadata     :8080
+  Mooncake Store        :8081, contributes 16GB DRAM
+  SGLang Prefill        L2=1GB per TP rank, TP16 ~= 16GB aggregate
+
+Decode A3
+  Mooncake Store        :8081, contributes 16GB DRAM
+  SGLang Decode         L2=1GB per TP rank, TP16 ~= 16GB aggregate
+
+Shared L3 capacity      16GB + 16GB = 32GB
+P/D KV transfer         Mooncake Ascend Direct/ADXL
+L2/L3 transfer          Mooncake Store over TCP for baseline validation
+```
+
+Relevant `deploy.env` defaults:
+
+```bash
+ENABLE_MOONCAKE_L3=1
+MOONCAKE_MASTER_IP=${PREFILL_IP}
+MOONCAKE_MASTER_PORT=50051
+MOONCAKE_METADATA_PORT=8080
+MOONCAKE_STORE_PORT=8081
+MOONCAKE_STORE_GB=16
+MOONCAKE_STORE_PROTOCOL=tcp
+HICACHE_L2_GB_PER_RANK=1
+ENABLE_DECODE_HICACHE=1
+ENABLE_DECODE_KV_OFFLOAD=1
+```
+
+The Store services contribute the DRAM pool, so both SGLang clients pass
+`global_segment_size=0`. `start-role.sh` automatically adds HiCache parameters
+when `ENABLE_MOONCAKE_L3=1`. Decode also enables PD decode radix cache and
+incremental KV offload to L3.
+
+Run on the Prefill node first:
+
+```bash
+./start-l3-node.sh prefill
+```
+
+This performs the normal preflight, L3 memory/component preflight, starts
+Master/Metadata, starts the local Store, then starts SGLang Prefill.
+
+Run on the Decode node after the Master is reachable:
+
+```bash
+./start-l3-node.sh decode
+```
+
+This checks the remote Master/Metadata, starts the Decode Store, then starts
+SGLang Decode. After both workers are healthy, run on the Router node:
+
+```bash
+./check-mooncake-l3.sh
+./wait-workers.sh
+./start-router.sh
+./smoke-test.sh
+```
+
+Inspect services:
+
+```bash
+docker logs -f sglang-mc-mooncake-master
+docker logs -f sglang-mc-mooncake-store
+docker logs -f sglang-mc-prefill
+docker logs -f sglang-mc-decode
+```
+
+`stop.sh` stops Router, P/D workers, the local Store, and the Master when it is
+present. Run it on Decode first and Prefill second.
+
+The initial Store protocol is TCP intentionally. Switching Store L3 to generic
+RDMA requires host RDMA NIC selection and `/dev/infiniband` mounts; it is
+separate from the NPU ADXL path used for P/D transfer.
 
 Build or load the derived image on both nodes, then run:
 
@@ -312,6 +396,9 @@ or deleting its container:
 ./collect-diagnostics.sh prefill
 ./collect-diagnostics.sh decode
 ./collect-diagnostics.sh router
+./collect-diagnostics.sh master
+./collect-diagnostics.sh store-prefill
+./collect-diagnostics.sh store-decode
 ```
 
 The command creates `sglang-mc-<role>-diagnostics-<timestamp>.tar.gz` in the

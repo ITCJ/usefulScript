@@ -35,6 +35,8 @@ load_env() {
     die "TP_SIZE cannot exceed NPU_COUNT_PER_ROLE"
   [[ "${USE_DOCKER_INIT:-0}" == "0" || "${USE_DOCKER_INIT:-0}" == "1" ]] || \
     die "USE_DOCKER_INIT must be 0 or 1"
+  [[ "${ENABLE_MOONCAKE_L3:-0}" == "0" || "${ENABLE_MOONCAKE_L3:-0}" == "1" ]] || \
+    die "ENABLE_MOONCAKE_L3 must be 0 or 1"
 }
 
 require_command() {
@@ -95,6 +97,19 @@ role_npu_ids() {
 
 role_name() {
   echo "${CONTAINER_PREFIX}-${1}"
+}
+
+wait_tcp_endpoint() {
+  local host=$1 port=$2 timeout_s=${3:-60} elapsed=0
+  while ((elapsed < timeout_s)); do
+    if timeout 2 bash -c 'exec 3<>"/dev/tcp/$1/$2"' _ "${host}" "${port}" \
+      >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  return 1
 }
 
 append_existing_device() {
@@ -189,4 +204,52 @@ build_docker_args() {
     mkdir -p "${HF_CACHE_HOST_PATH}"
     DOCKER_ARGS+=(--volume "${HF_CACHE_HOST_PATH}:/root/.cache/huggingface")
   fi
+}
+
+build_mooncake_service_docker_args() {
+  local container_name=$1 npu_smi_path
+  MOONCAKE_SERVICE_DOCKER_ARGS=(
+    --detach
+    --user 0:0
+    --name "${container_name}"
+    --network host
+    --ipc host
+    --shm-size "${SHM_SIZE}"
+    --log-driver "${DOCKER_LOG_DRIVER:-json-file}"
+    --log-opt "max-size=${DOCKER_LOG_MAX_SIZE:-100m}"
+    --log-opt "max-file=${DOCKER_LOG_MAX_FILE:-3}"
+    --ulimit memlock=-1:-1
+    --cap-add IPC_LOCK
+    --security-opt seccomp=unconfined
+  )
+  if [[ "${USE_DOCKER_INIT:-0}" == "1" ]]; then
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--init)
+  fi
+  if [[ "${USE_PRIVILEGED:-0}" == "1" ]]; then
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--privileged)
+  fi
+  [[ -d /usr/local/Ascend/driver ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro)
+  [[ -d /usr/local/Ascend/firmware ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/Ascend/firmware:/usr/local/Ascend/firmware:ro)
+  [[ -d /usr/local/Ascend/add-ons ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/Ascend/add-ons:/usr/local/Ascend/add-ons:ro)
+  [[ -d /usr/local/dcmi ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/dcmi:/usr/local/dcmi:ro)
+  [[ -d /usr/local/sbin ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /usr/local/sbin:/usr/local/sbin:ro)
+  npu_smi_path=$(find_npu_smi || true)
+  if [[ -n "${npu_smi_path}" && "${npu_smi_path}" != /usr/local/sbin/* ]]; then
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume "${npu_smi_path}:${npu_smi_path}:ro")
+  fi
+  [[ -f /etc/localtime ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /etc/localtime:/etc/localtime:ro)
+  [[ -f /etc/ascend_install.info ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /etc/ascend_install.info:/etc/ascend_install.info:ro)
+  [[ -f /etc/hccn.conf ]] && \
+    MOONCAKE_SERVICE_DOCKER_ARGS+=(--volume /etc/hccn.conf:/etc/hccn.conf:ro)
+  MOONCAKE_SERVICE_DOCKER_ARGS+=(
+    --volume "${LOG_DIR}:/logs"
+    --volume "${DEPLOY_DIR}:/opt/sglang-mooncake-deploy:ro"
+  )
 }

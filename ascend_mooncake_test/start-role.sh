@@ -48,6 +48,40 @@ SERVER_ARGS=(
   --disaggregation-bootstrap-port "${PREFILL_BOOTSTRAP_PORT}"
 )
 
+if [[ "${ENABLE_MOONCAKE_L3:-0}" == "1" ]]; then
+  role_local_ip=${PREFILL_IP}
+  if [[ "${ROLE}" == "decode" ]]; then
+    role_local_ip=${DECODE_IP}
+  fi
+  mooncake_store_config=$(printf \
+    '{"master_server_address":"%s:%s","local_hostname":"%s","metadata_server":"http://%s:%s/metadata","global_segment_size":0,"protocol":"%s","device_name":"%s"}' \
+    "${MOONCAKE_MASTER_IP}" \
+    "${MOONCAKE_MASTER_PORT}" \
+    "${role_local_ip}" \
+    "${MOONCAKE_MASTER_IP}" \
+    "${MOONCAKE_METADATA_PORT}" \
+    "${MOONCAKE_STORE_PROTOCOL}" \
+    "${MOONCAKE_STORE_DEVICE:-}")
+
+  SERVER_ARGS+=(
+    --enable-hierarchical-cache
+    --hicache-size "${HICACHE_L2_GB_PER_RANK}"
+    --hicache-io-backend "${HICACHE_IO_BACKEND}"
+    --hicache-mem-layout "${HICACHE_MEM_LAYOUT}"
+    --hicache-write-policy "${HICACHE_WRITE_POLICY}"
+    --hicache-storage-backend mooncake
+    --hicache-storage-prefetch-policy "${HICACHE_PREFETCH_POLICY}"
+    --hicache-storage-backend-extra-config "${mooncake_store_config}"
+  )
+
+  if [[ "${ROLE}" == "decode" && "${ENABLE_DECODE_HICACHE:-1}" == "1" ]]; then
+    SERVER_ARGS+=(--disaggregation-decode-enable-radix-cache)
+  fi
+  if [[ "${ROLE}" == "decode" && "${ENABLE_DECODE_KV_OFFLOAD:-1}" == "1" ]]; then
+    SERVER_ARGS+=(--disaggregation-decode-enable-offload-kvcache)
+  fi
+fi
+
 if [[ "${ROLE}" == "prefill" ]]; then
   SERVER_ARGS+=(--chunked-prefill-size "${CHUNKED_PREFILL_SIZE}")
 fi
@@ -91,6 +125,14 @@ for network_env_name in \
 done
 
 container_name=$(role_name "${ROLE}")
+if [[ "${ENABLE_MOONCAKE_L3:-0}" == "1" ]]; then
+  wait_tcp_endpoint "${MOONCAKE_MASTER_IP}" "${MOONCAKE_MASTER_PORT}" 5 || \
+    die "Mooncake Master is unavailable at ${MOONCAKE_MASTER_IP}:${MOONCAKE_MASTER_PORT}"
+  wait_tcp_endpoint "${MOONCAKE_MASTER_IP}" "${MOONCAKE_METADATA_PORT}" 5 || \
+    die "Mooncake metadata service is unavailable at ${MOONCAKE_MASTER_IP}:${MOONCAKE_METADATA_PORT}"
+  wait_tcp_endpoint "${role_local_ip}" "${MOONCAKE_STORE_PORT}" 5 || \
+    die "Local Mooncake Store is unavailable at ${role_local_ip}:${MOONCAKE_STORE_PORT}"
+fi
 log "Starting ${ROLE}: NPU base=${BASE_NPU}, TP=${TP_SIZE}, endpoint=${HOST_IP}:${HTTP_PORT}"
 docker run "${DOCKER_ARGS[@]}" \
   "${RUNTIME_IMAGE}" \

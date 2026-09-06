@@ -3,9 +3,24 @@ set -Eeuo pipefail
 
 ROLE=${1:-prefill}
 case "${ROLE}" in
-  prefill|decode|router) ;;
+  prefill|decode|router)
+    container_suffix=${ROLE}
+    log_basename=${ROLE}
+    ;;
+  master)
+    container_suffix=mooncake-master
+    log_basename=mooncake-master
+    ;;
+  store-prefill)
+    container_suffix=mooncake-store
+    log_basename=mooncake-store-prefill
+    ;;
+  store-decode)
+    container_suffix=mooncake-store
+    log_basename=mooncake-store-decode
+    ;;
   *)
-    echo "Usage: $0 [prefill|decode|router] [output-directory]" >&2
+    echo "Usage: $0 [prefill|decode|router|master|store-prefill|store-decode] [output-directory]" >&2
     exit 2
     ;;
 esac
@@ -41,7 +56,7 @@ command -v docker >/dev/null 2>&1 || {
 mkdir -p "${OUTPUT_DIR}"
 
 timestamp=$(date '+%Y%m%d-%H%M%S')
-container_name="${CONTAINER_PREFIX}-${ROLE}"
+container_name="${CONTAINER_PREFIX}-${container_suffix}"
 tmp_dir=$(mktemp -d "/tmp/sglang-mc-diagnostics.${ROLE}.XXXXXX")
 archive_path="${OUTPUT_DIR}/sglang-mc-${ROLE}-diagnostics-${timestamp}.tar.gz"
 
@@ -151,7 +166,7 @@ host_hccn_info() {
 }
 
 host_log() {
-  local log_file="${LOG_DIR}/${ROLE}.log"
+  local log_file="${LOG_DIR}/${log_basename}.log"
   if [[ -f "${log_file}" ]]; then
     ls -l "${log_file}"
     tail -n 1000 "${log_file}"
