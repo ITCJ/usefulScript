@@ -60,6 +60,7 @@ grep -Fq 'disaggregation-decode-enable-offload-kvcache' "${SCRIPT_DIR}/start-rol
 grep -Fq 'Mooncake Master is ready' "${SCRIPT_DIR}/start-mooncake-master.sh"
 grep -Fq 'Mooncake Store is ready' "${SCRIPT_DIR}/start-mooncake-store.sh"
 grep -Fq 'Mooncake L3 preflight passed' "${SCRIPT_DIR}/preflight-mooncake-l3.sh"
+grep -Fq '[component-check] passed' "${SCRIPT_DIR}/check-mooncake-l3-components.sh"
 grep -Fq 'L3 check phase 1/3' "${SCRIPT_DIR}/preflight-mooncake-l3.sh"
 grep -Fq 'must be a non-negative integer' "${SCRIPT_DIR}/preflight-mooncake-l3.sh"
 if grep -Fq 'source /usr/local/Ascend/ascend-toolkit/set_env.sh' \

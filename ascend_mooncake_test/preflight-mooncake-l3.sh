@@ -69,22 +69,13 @@ L3_IMPORT_DOCKER_ARGS=(--rm --entrypoint bash)
   L3_IMPORT_DOCKER_ARGS+=(--volume /usr/local/Ascend/driver:/usr/local/Ascend/driver:ro)
 [[ -d /usr/local/Ascend/add-ons ]] && \
   L3_IMPORT_DOCKER_ARGS+=(--volume /usr/local/Ascend/add-ons:/usr/local/Ascend/add-ons:ro)
+L3_IMPORT_DOCKER_ARGS+=(
+  --volume "${SCRIPT_DIR}:/opt/sglang-mooncake-deploy:ro"
+)
 
 log "L3 check phase 2/3: validating Mooncake Master/Store components"
-docker run "${L3_IMPORT_DOCKER_ARGS[@]}" "${RUNTIME_IMAGE}" -lc '
-set -eo pipefail
-# Avoid sourcing vendor set_env.sh in checks: some releases enable nounset and
-# reference optional variables such as $n. The required runtime paths are
-# supplied explicitly instead.
-export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/ascend-toolkit/latest/lib64:${LD_LIBRARY_PATH:-}"
-command -v mooncake_master
-JEMALLOC_SO=$(find /usr/lib /lib -name libjemalloc.so.2 -print -quit)
-test -n "${JEMALLOC_SO}"
-LD_PRELOAD="${JEMALLOC_SO}" python3 - <<"PY"
-from mooncake.store import MooncakeDistributedStore, MooncakeHostMemAllocator
-print("Mooncake L3 components import: OK")
-PY
-'
+docker run "${L3_IMPORT_DOCKER_ARGS[@]}" "${RUNTIME_IMAGE}" \
+  /opt/sglang-mooncake-deploy/check-mooncake-l3-components.sh
 
 if [[ "${ROLE}" == "decode" ]]; then
   log "L3 check phase 3/3: validating remote Master/Metadata connectivity"
