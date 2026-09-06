@@ -89,7 +89,9 @@ docker run "${PREFLIGHT_DOCKER_ARGS[@]}" \
   --env "EXPECTED_NPU_COUNT=$((required_max + 1))" \
   --entrypoint bash "${RUNTIME_IMAGE}" -lc '
 set -Eeuo pipefail
-source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
+# Avoid sourcing vendor set_env.sh under nounset in a validation shell. The
+# image already contains CANN; explicitly expose host driver/runtime libraries.
+export LD_LIBRARY_PATH="/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/ascend-toolkit/latest/lib64:${LD_LIBRARY_PATH:-}"
 
 NPU_SMI_BIN=$(command -v npu-smi 2>/dev/null || true)
 if [[ -z "${NPU_SMI_BIN}" && -x /usr/local/bin/npu-smi ]]; then
