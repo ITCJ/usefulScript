@@ -37,10 +37,18 @@ if grep -Fq "sed -n '" "${SCRIPT_DIR}/preflight.sh"; then
   echo "Single-quoted sed expressions break the outer bash -lc payload" >&2
   exit 1
 fi
+if grep -Eq 'libjemalloc.*p;q;' \
+  "${SCRIPT_DIR}/preflight.sh" \
+  "${SCRIPT_DIR}/container-entrypoint.sh"; then
+  echo "Early sed quit can trigger SIGPIPE under pipefail" >&2
+  exit 1
+fi
 grep -Fq 'NPU_SMI_BIN' "${SCRIPT_DIR}/preflight.sh"
 grep -Fq 'USE_DOCKER_INIT' "${SCRIPT_DIR}/lib.sh"
 grep -Fq 'USE_DOCKER_INIT=0' "${SCRIPT_DIR}/deploy.env.example"
 grep -Fq 'Entrypoint started:' "${SCRIPT_DIR}/container-entrypoint.sh"
+grep -Fq 'Loading environment:' "${SCRIPT_DIR}/container-entrypoint.sh"
+grep -Fq 'Resolving libjemalloc.so.2' "${SCRIPT_DIR}/container-entrypoint.sh"
 grep -Fq 'Container state=' "${SCRIPT_DIR}/start-role.sh"
 grep -Fq 'DOCKER_LOG_DRIVER=json-file' "${SCRIPT_DIR}/deploy.env.example"
 grep -Fq 'Diagnostic archive created:' "${SCRIPT_DIR}/collect-diagnostics.sh"
