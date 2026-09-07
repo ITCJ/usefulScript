@@ -96,5 +96,7 @@ fi
 grep -Fq 'store-prefill' "${SCRIPT_DIR}/collect-diagnostics.sh"
 grep -Fq 'start-l3-node.sh prefill' "${SCRIPT_DIR}/QUICKSTART_L3.md"
 grep -Fq 'start-l3-node.sh decode' "${SCRIPT_DIR}/QUICKSTART_L3.md"
+grep -Fq './build-image.sh' "${SCRIPT_DIR}/BUILD_AND_DEPLOY_PD.md"
+grep -Fq './start-role.sh prefill' "${SCRIPT_DIR}/BUILD_AND_DEPLOY_PD.md"
 
 echo "Static deployment checks passed"

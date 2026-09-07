@@ -1,5 +1,7 @@
 # SGLang v0.5.16 + Mooncake on Ascend A3
 
+从镜像构建到 PD/L3 推理的完整中文部署步骤见 `BUILD_AND_DEPLOY_PD.md`。
+
 双机 L3 DRAM Pool最简运行步骤见 `QUICKSTART_L3.md`。
 
 This package deploys SGLang Prefill/Decode disaggregation on Ascend A3 with
@@ -132,7 +134,7 @@ Compared with `usefulScript/ascend_env/docker_run.sh`:
 | Item | Decision | Reason |
 | --- | --- | --- |
 | `/home/tcj`, `/home/caofei`, `/home/cryang_wx1511021` | Worker required, read-write | Requested shared model/workspace access; validated before startup |
-| `/usr/local/Ascend/driver` | Required, read-only | Host NPU driver runtime |
+| `/usr/local/Ascend/driver` | Required, writable | Host NPU driver runtime |
 | `/usr/local/Ascend/driver/lib64` | Covered by driver mount | Do not add a duplicate child bind mount |
 | `/usr/local/Ascend/driver/version.info` | Covered by driver mount | Do not add a duplicate child bind mount |
 | `/usr/local/Ascend/driver/tools/hccn_tool` | Covered by driver mount | Used by preflight when it is not available in `PATH` |
@@ -151,7 +153,7 @@ Compared with `usefulScript/ascend_env/docker_run.sh`:
 | `--init` | Optional, default off | Enable with `USE_DOCKER_INIT=1` only when the host includes `docker-init` |
 | `--user 0:0` | Enabled | Makes the base image's root execution convention explicit |
 | `--entrypoint /usr/bin/tini` | Not used | The worker entrypoint already uses `exec`; no extra init binary is required for the baseline |
-| `--privileged` | Optional | `USE_PRIVILEGED=1`; explicit devices/capabilities are the safer default |
+| `--privileged` | Enabled by default | Required for NPU visibility on several Ascend container hosts |
 
 ## Single-node deployment
 
