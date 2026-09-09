@@ -106,6 +106,9 @@ PREFLIGHT_DOCKER_ARGS+=(
 
 docker run "${PREFLIGHT_DOCKER_ARGS[@]}" \
   --env "EXPECTED_NPU_COUNT=${expected_device_count}" \
+  --env "PD_TRANSFER_BACKEND=${PD_TRANSFER_BACKEND}" \
+  --env "ASCEND_MF_STORE_URL=${ASCEND_MF_STORE_URL:-}" \
+  --env "ASCEND_MF_TRANSFER_PROTOCOL=${ASCEND_MF_TRANSFER_PROTOCOL:-}" \
   --entrypoint bash "${RUNTIME_IMAGE}" \
   /opt/sglang-mooncake-deploy/check-runtime-components.sh
 

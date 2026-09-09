@@ -79,6 +79,18 @@ grep -Fq 'run-mooncake-store.py' "${SCRIPT_DIR}/mooncake-service-entrypoint.sh"
 grep -Fq 'append_ascend_devices' "${SCRIPT_DIR}/lib.sh"
 grep -Fq 'ASCEND_RT_VISIBLE_DEVICES=' "${SCRIPT_DIR}/start-role.sh"
 grep -Fq 'ASCEND_RT_VISIBLE_DEVICES=' "${SCRIPT_DIR}/preflight.sh"
+grep -Fq 'PD_TRANSFER_BACKEND=ascend' "${SCRIPT_DIR}/deploy.env.example"
+grep -Fq 'ASCEND_MF_STORE_URL=' "${SCRIPT_DIR}/deploy.env.example"
+grep -Fq 'ASCEND_MF_TRANSFER_PROTOCOL=device_rdma' "${SCRIPT_DIR}/deploy.env.example"
+grep -Fq 'disaggregation-transfer-backend "${PD_TRANSFER_BACKEND}"' "${SCRIPT_DIR}/start-role.sh"
+grep -Fq 'PD_TRANSFER_BACKEND=${PD_TRANSFER_BACKEND}' "${SCRIPT_DIR}/start-role.sh"
+grep -Fq 'unset ENABLE_ASCEND_TRANSFER_WITH_MOONCAKE' "${SCRIPT_DIR}/container-entrypoint.sh"
+grep -Fq 'memfabric_hybrid' "${SCRIPT_DIR}/check-runtime-components.sh"
+if grep -Fq 'P/D KV传输：Mooncake Ascend Direct' "${SCRIPT_DIR}/QUICKSTART_L3.md"; then
+  echo 'Quick Start still documents the deprecated Mooncake P/D path' >&2
+  exit 1
+fi
+grep -Fq 'MemFabric config store' "${SCRIPT_DIR}/check-mooncake-l3.sh"
 grep -Fq 'Mooncake L3 preflight passed' "${SCRIPT_DIR}/preflight-mooncake-l3.sh"
 grep -Fq '[component-check] passed' "${SCRIPT_DIR}/check-mooncake-l3-components.sh"
 grep -Fq 'L3 check phase 1/3' "${SCRIPT_DIR}/preflight-mooncake-l3.sh"
@@ -98,5 +110,7 @@ grep -Fq 'start-l3-node.sh prefill' "${SCRIPT_DIR}/QUICKSTART_L3.md"
 grep -Fq 'start-l3-node.sh decode' "${SCRIPT_DIR}/QUICKSTART_L3.md"
 grep -Fq './build-image.sh' "${SCRIPT_DIR}/BUILD_AND_DEPLOY_PD.md"
 grep -Fq './start-role.sh prefill' "${SCRIPT_DIR}/BUILD_AND_DEPLOY_PD.md"
+grep -Fq 'Quick Start：PD 运行顺序' "${SCRIPT_DIR}/BUILD_AND_DEPLOY_PD.md"
+grep -Fq './start-router.sh' "${SCRIPT_DIR}/BUILD_AND_DEPLOY_PD.md"
 
 echo "Static deployment checks passed"

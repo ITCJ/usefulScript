@@ -52,6 +52,13 @@ import torch
 import torch_npu
 from mooncake.engine import TransferEngine
 
+if os.environ.get("PD_TRANSFER_BACKEND") == "ascend":
+    from memfabric_hybrid import TransferEngine as MemFabricTransferEngine
+    from memfabric_hybrid import create_config_store
+else:
+    MemFabricTransferEngine = None
+    create_config_store = None
+
 ctypes.CDLL("libibverbs.so.1")
 expected = int(os.environ["EXPECTED_NPU_COUNT"])
 actual = torch.npu.device_count()
@@ -68,6 +75,9 @@ print("mooncake-transfer-engine-npu:", md.version("mooncake-transfer-engine-npu"
 print("libibverbs.so.1 load: OK")
 print("libjemalloc.so.2 preloaded:", jemalloc_loaded)
 print("Mooncake TransferEngine import: OK", TransferEngine)
+if MemFabricTransferEngine is not None:
+    print("MemFabric TransferEngine import: OK", MemFabricTransferEngine)
+    print("MemFabric create_config_store import: OK", create_config_store)
 
 if not jemalloc_loaded:
     raise RuntimeError("libjemalloc.so.2 was not preloaded before Python startup")

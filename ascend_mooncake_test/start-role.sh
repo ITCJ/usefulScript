@@ -44,7 +44,7 @@ SERVER_ARGS=(
   --max-running-requests "${MAX_RUNNING_REQUESTS}"
   --dtype "${DTYPE}"
   --disaggregation-mode "${ROLE}"
-  --disaggregation-transfer-backend mooncake
+  --disaggregation-transfer-backend "${PD_TRANSFER_BACKEND}"
   --disaggregation-bootstrap-port "${PREFILL_BOOTSTRAP_PORT}"
 )
 
@@ -101,14 +101,24 @@ if [[ -n "${EXTRA_ARGS}" ]]; then
 fi
 
 DOCKER_ARGS+=(
+  --env "PD_TRANSFER_BACKEND=${PD_TRANSFER_BACKEND}"
   --env "SGLANG_HOST_IP=${HOST_IP}"
-  --env "ASCEND_BASE_PORT=${ASCEND_PORT}"
-  --env "ASCEND_AUTO_CONNECT=${ASCEND_AUTO_CONNECT:-1}"
   --env "ASCEND_RT_VISIBLE_DEVICES=$(role_npu_ids "${ROLE}" | paste -sd, -)"
   --env "SGLANG_LOG_LEVEL=${SGLANG_LOG_LEVEL}"
   --env "SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT=${SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT}"
   --env "SGLANG_DISAGGREGATION_WAITING_TIMEOUT=${SGLANG_DISAGGREGATION_WAITING_TIMEOUT}"
 )
+if [[ "${PD_TRANSFER_BACKEND}" == "ascend" ]]; then
+  DOCKER_ARGS+=(
+    --env "ASCEND_MF_STORE_URL=${ASCEND_MF_STORE_URL}"
+    --env "ASCEND_MF_TRANSFER_PROTOCOL=${ASCEND_MF_TRANSFER_PROTOCOL:-device_rdma}"
+  )
+else
+  DOCKER_ARGS+=(
+    --env "ASCEND_BASE_PORT=${ASCEND_PORT}"
+    --env "ASCEND_AUTO_CONNECT=${ASCEND_AUTO_CONNECT:-1}"
+  )
+fi
 [[ -n "${HCCL_SOCKET_IFNAME:-}" ]] && DOCKER_ARGS+=(--env "HCCL_SOCKET_IFNAME=${HCCL_SOCKET_IFNAME}")
 [[ -n "${GLOO_SOCKET_IFNAME:-}" ]] && DOCKER_ARGS+=(--env "GLOO_SOCKET_IFNAME=${GLOO_SOCKET_IFNAME}")
 for network_env_name in \
@@ -126,6 +136,13 @@ for network_env_name in \
 done
 
 container_name=$(role_name "${ROLE}")
+if [[ "${PD_TRANSFER_BACKEND}" == "ascend" && "${ROLE}" == "decode" ]]; then
+  mf_endpoint=${ASCEND_MF_STORE_URL#tcp://}
+  mf_host=${mf_endpoint%:*}
+  mf_port=${mf_endpoint##*:}
+  wait_tcp_endpoint "${mf_host}" "${mf_port}" 10 || \
+    die "Ascend MemFabric config store is unavailable at ${mf_host}:${mf_port}; start Prefill first"
+fi
 if [[ "${ENABLE_MOONCAKE_L3:-0}" == "1" ]]; then
   wait_tcp_endpoint "${MOONCAKE_MASTER_IP}" "${MOONCAKE_MASTER_PORT}" 5 || \
     die "Mooncake Master is unavailable at ${MOONCAKE_MASTER_IP}:${MOONCAKE_MASTER_PORT}"

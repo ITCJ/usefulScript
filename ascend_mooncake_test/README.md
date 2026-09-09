@@ -4,8 +4,25 @@
 
 双机 L3 DRAM Pool最简运行步骤见 `QUICKSTART_L3.md`。
 
-This package deploys SGLang Prefill/Decode disaggregation on Ascend A3 with
-Mooncake Transfer Engine as the KV transfer layer.
+PD 最简运行顺序：
+
+```bash
+# Prefill节点
+./start-l3-node.sh prefill
+
+# Decode节点
+./start-l3-node.sh decode
+
+# Router节点
+./check-mooncake-l3.sh
+./wait-workers.sh
+./start-router.sh
+./smoke-test.sh
+```
+
+This package deploys SGLang Prefill/Decode disaggregation on Ascend A3. The
+current default uses Ascend MemFabric for P/D KV transfer and Mooncake Store as
+the independent HiCache L3 DRAM backend.
 
 See `RESEARCH.md` for the source-level compatibility analysis, the v0.5.16
 documentation conflict, network behavior, and production acceptance gates.
@@ -14,8 +31,8 @@ Pinned versions:
 
 - Base image: `quay.io/ascend/sglang:v0.5.16-cann9.0.0-a3`
 - Mooncake NPU wheel: `mooncake-transfer-engine-npu==0.3.11.post1`
-- Transfer path: SGLang `mooncake` backend with Mooncake `ascend` transport
-- Metadata mode: `P2PHANDSHAKE`; no `mooncake_master` is required for PD transfer
+- P/D transfer path: SGLang `ascend` backend with `memfabric-hybrid`
+- L3 storage path: SGLang HiCache with Mooncake Store over TCP
 
 ## Why a derived image is required
 
@@ -100,7 +117,7 @@ Single A3 server (optional; TP16 requires 32 NPUs):
 client -> router:8000
               |-> prefill:30000, bootstrap:8998, NPU 0-15
               `-> decode:30001,                 NPU 16-31
-                    Mooncake Ascend Direct KV transfer
+                    Ascend MemFabric KV transfer
 ```
 
 Two A3 servers (default):
@@ -108,7 +125,7 @@ Two A3 servers (default):
 ```text
 router -> prefill node:30000/8998, NPU 0-15
        -> decode node:30001,      NPU 0-15
-          Mooncake Ascend Direct over the nodes' HCCS/RDMA-capable fabric
+          Ascend MemFabric device_rdma transfer
 ```
 
 The scripts use `--network host` and `--ipc host`, map the selected NPU device
@@ -144,7 +161,7 @@ Compared with `usefulScript/ascend_env/docker_run.sh`:
 | `/usr/local/sbin` | Keep, read-only | Provides `npu-smi` and host Ascend management tools |
 | Dedicated `npu-smi` mount | Not needed | Already covered by the whole `/usr/local/sbin` mount |
 | `/etc/ascend_install.info` | Keep when present, read-only | Host driver/install metadata discovery |
-| `/etc/hccn.conf` | Required, read-only | Mooncake Ascend Direct obtains local NPU network information from it |
+| `/etc/hccn.conf` | Required, read-only | Ascend device RDMA/HCCL obtains local NPU network information from it |
 | `/var/queue_schedule` | Keep when present | A3 queue scheduling runtime integration |
 | `/dev/infiniband`, `/sys/class/infiniband` | Not used by default | Needed by Mooncake generic mlx5 `rdma` transport, not ADXL `ascend` transport |
 | `/dev/socket` | Do not mount | Not present in the CANN/SGLang/Mooncake Ascend references and exposes unspecified host sockets |
@@ -204,7 +221,7 @@ Decode A3
   SGLang Decode         L2=1GB per TP rank, TP16 ~= 16GB aggregate
 
 Shared L3 capacity      16GB + 16GB = 32GB
-P/D KV transfer         Mooncake Ascend Direct/ADXL
+P/D KV transfer         SGLang Ascend MemFabric/device_rdma
 L2/L3 transfer          Mooncake Store over TCP for baseline validation
 ```
 
@@ -219,6 +236,9 @@ MOONCAKE_STORE_PORT=8081
 MOONCAKE_STORE_GB=16
 MOONCAKE_STORE_PROTOCOL=tcp
 MOONCAKE_STORE_NPU_ID=0
+PD_TRANSFER_BACKEND=ascend
+ASCEND_MF_STORE_URL=tcp://${PREFILL_IP}:24670
+ASCEND_MF_TRANSFER_PROTOCOL=device_rdma
 HICACHE_L2_GB_PER_RANK=1
 ENABLE_DECODE_HICACHE=1
 ENABLE_DECODE_KV_OFFLOAD=1
@@ -298,29 +318,23 @@ Build or load the derived image on both nodes, then run:
 Network requirements for split mode:
 
 - Allow `PREFILL_HTTP_PORT`, `DECODE_HTTP_PORT`, and `PREFILL_BOOTSTRAP_PORT`.
-- Allow the Ascend Direct ranges. With the defaults and physical NPU 0-15,
-  prefill uses roughly TCP 20000-21600 and decode 24000-25600 (each device owns
-  a 100-port selection window; include both endpoints and operational margin).
-- SGLang v0.5.16 also obtains a free host TCP port for each Mooncake endpoint.
-  Allow the host's `net.ipv4.ip_local_port_range` bidirectionally on the trusted
-  inference network, or enforce an equivalent host-level port policy outside
-  SGLang. Do not expose these ports to an untrusted network.
+- Allow `ASCEND_MF_STORE_URL` (default `61.28.30.27:24670`) from both nodes.
+- Ensure the NPU device-RDMA/HCCL network is configured and mutually reachable.
+- Mooncake L3 Store over TCP still uses dynamic Mooncake RPC/data ports; allow
+  the trusted-node ranges and host ephemeral ports required by that path.
 - Ensure the service IP selected through `SGLANG_HOST_IP` is routable between P
   and D nodes. Do not use `127.0.0.1` in split mode.
 
 ## Important settings
 
-- Do not replace `--disaggregation-transfer-backend mooncake` with `ascend` in
-  these scripts. In v0.5.16, `ascend` selects `memfabric-hybrid`; this package is
-  specifically for the Mooncake NPU wheel and Ascend Direct transport.
-- `ENABLE_ASCEND_TRANSFER_WITH_MOONCAKE=true` makes SGLang initialize Mooncake
-  with protocol `ascend` rather than CUDA-style `rdma`.
-- `ASCEND_NPU_PHY_ID=-1` is intentional. Each TP rank uses its own NPU ID. A
-  single fixed physical ID is only appropriate for a one-NPU process/container.
-- `--disaggregation-ib-device` is intentionally omitted because it belongs to
-  Mooncake's generic RDMA HCA-selection path, not Ascend Direct.
-- `PREFILL_ASCEND_BASE_PORT` and `DECODE_ASCEND_BASE_PORT` are separated to
-  avoid same-host P/D port-range collisions.
+- `PD_TRANSFER_BACKEND=ascend` is the default and selects `memfabric-hybrid` for
+  P/D KV transfer. Both nodes must use the same `ASCEND_MF_STORE_URL`.
+- `ASCEND_MF_TRANSFER_PROTOCOL=device_rdma` is used for the two-node A3 path.
+- Mooncake remains enabled independently as the HiCache L3 storage backend;
+  `MOONCAKE_STORE_PROTOCOL=tcp` controls L2/L3 transfer only.
+- The legacy `PD_TRANSFER_BACKEND=mooncake` path is retained for comparison but
+  is not recommended with Mooncake NPU 0.3.11.post1 because its Ascend Direct
+  endpoint can be malformed as `IP:RPC_PORT:ADXL_PORT`.
 - Worker containers run explicitly as root. Docker `--init` is disabled by
   default because some Ascend server Docker packages omit the `docker-init`
   executable. Set `USE_DOCKER_INIT=1` only after verifying the host supports it;

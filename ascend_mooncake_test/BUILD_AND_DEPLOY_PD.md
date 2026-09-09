@@ -1,8 +1,83 @@
 # SGLang Ascend：从镜像构建到 PD 推理部署
 
-更新时间：2026-09-06
+更新时间：2026-09-09
 
 本文覆盖两节点 Ascend A3 环境，从派生镜像构建开始，到完成 SGLang Prefill/Decode（PD）推理并接入 Mooncake L3 DRAM Pool。
+
+## Quick Start：PD 运行顺序
+
+前提：两台节点已经完成镜像构建、`deploy.env` 配置，并且
+`./preflight.sh` 可以通过。
+
+### 1. Prefill 节点先启动
+
+在 `61.28.30.27` 执行：
+
+```bash
+cd /home/tcj/usefulScript/ascend_mooncake_test
+./start-l3-node.sh prefill
+```
+
+执行顺序：
+
+```text
+Preflight
+→ Mooncake Master/Metadata
+→ Prefill Mooncake Store
+→ SGLang Prefill
+```
+
+### 2. Decode 节点后启动
+
+Prefill节点的 Master、Store和 Prefill均正常后，在 `61.28.30.28` 执行：
+
+```bash
+cd /home/tcj/usefulScript/ascend_mooncake_test
+./start-l3-node.sh decode
+```
+
+执行顺序：
+
+```text
+Preflight
+→ 检查远程 Master/Metadata
+→ Decode Mooncake Store
+→ SGLang Decode
+```
+
+### 3. 启动 Router并测试
+
+P/D 两端均 ready 后，在 Router节点执行：
+
+```bash
+cd /home/tcj/usefulScript/ascend_mooncake_test
+./check-mooncake-l3.sh
+./wait-workers.sh
+./start-router.sh
+./smoke-test.sh
+```
+
+最简顺序：
+
+```text
+Prefill：./start-l3-node.sh prefill
+Decode： ./start-l3-node.sh decode
+Router： ./check-mooncake-l3.sh
+        → ./wait-workers.sh
+        → ./start-router.sh
+        → ./smoke-test.sh
+```
+
+注意：`start-l3-node.sh` 会重建该节点上的相关容器。如果 Master或 Store已经
+手动启动并且运行正常，不要重复执行一键脚本，直接继续缺少的步骤。例如：
+
+```bash
+# Prefill Master和 Store已运行，只启动 Prefill Worker
+./start-role.sh prefill
+
+# Decode Store已运行，只启动 Decode Worker
+./start-role.sh decode
+```
 
 ## 1. 部署拓扑
 
@@ -18,7 +93,7 @@ Decode A3：61.28.30.28
 
 Mooncake L3：32GB（2×16GB）
 SGLang L2：1GB/TP rank，TP16 下约 16GB/节点
-P/D KV：Mooncake Ascend Direct
+P/D KV：SGLang Ascend MemFabric（device_rdma）
 L2/L3：Mooncake Store TCP
 ```
 
@@ -63,6 +138,10 @@ APT_PORTS_MIRROR=http://mirrors.ustc.edu.cn/ubuntu-ports
 
 MOONCAKE_STORE_NPU_ID=0
 USE_PRIVILEGED=1
+
+PD_TRANSFER_BACKEND=ascend
+ASCEND_MF_STORE_URL=tcp://${PREFILL_IP}:24670
+ASCEND_MF_TRANSFER_PROTOCOL=device_rdma
 ```
 
 若模型较小，可下调 `NPU_COUNT_PER_ROLE` 和 `TP_SIZE`；当前默认按 16 张 NPU 计算。
@@ -242,9 +321,9 @@ docker inspect --format '{{json .HostConfig.Devices}}' sglang-mc-prefill
 | 50051 | Mooncake Master |
 | 8080 | Mooncake Metadata |
 | 8081 | Mooncake Store |
-| 20000-21600 | Prefill Ascend Direct |
-| 24000-25600 | Decode Ascend Direct |
-| 临时端口 | Mooncake 动态 RPC |
+| 24670 | Ascend MemFabric config store |
+| Mooncake动态端口 | L3 Store TCP RPC/数据传输 |
+| NPU/HCCL网络 | MemFabric `device_rdma` 数据传输 |
 
 ## 11. 日志与诊断
 

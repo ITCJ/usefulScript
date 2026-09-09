@@ -28,6 +28,7 @@ load_env() {
   : "${NPU_COUNT_PER_ROLE:?NPU_COUNT_PER_ROLE is required}"
   : "${PREFILL_IP:?PREFILL_IP is required}"
   : "${DECODE_IP:?DECODE_IP is required}"
+  : "${PD_TRANSFER_BACKEND:?PD_TRANSFER_BACKEND is required}"
 
   [[ "${DEPLOY_MODE}" == "single" || "${DEPLOY_MODE}" == "split" ]] || \
     die "DEPLOY_MODE must be single or split"
@@ -37,6 +38,13 @@ load_env() {
     die "USE_DOCKER_INIT must be 0 or 1"
   [[ "${ENABLE_MOONCAKE_L3:-0}" == "0" || "${ENABLE_MOONCAKE_L3:-0}" == "1" ]] || \
     die "ENABLE_MOONCAKE_L3 must be 0 or 1"
+  [[ "${PD_TRANSFER_BACKEND}" == "ascend" || "${PD_TRANSFER_BACKEND}" == "mooncake" ]] || \
+    die "PD_TRANSFER_BACKEND must be ascend or mooncake"
+  if [[ "${PD_TRANSFER_BACKEND}" == "ascend" ]]; then
+    : "${ASCEND_MF_STORE_URL:?ASCEND_MF_STORE_URL is required for the ascend PD backend}"
+    [[ "${ASCEND_MF_STORE_URL}" == tcp://*:* ]] || \
+      die "ASCEND_MF_STORE_URL must use tcp://HOST:PORT"
+  fi
 }
 
 require_command() {

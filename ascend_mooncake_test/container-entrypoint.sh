@@ -71,13 +71,20 @@ fi
 export LD_PRELOAD="${JEMALLOC_SO}${LD_PRELOAD:+:${LD_PRELOAD}}"
 echo "[$(date '+%F %T')] Using jemalloc preload: ${JEMALLOC_SO}"
 
-export ENABLE_ASCEND_TRANSFER_WITH_MOONCAKE=true
-export ASCEND_NPU_PHY_ID=-1
+if [[ "${PD_TRANSFER_BACKEND:-ascend}" == "mooncake" ]]; then
+  export ENABLE_ASCEND_TRANSFER_WITH_MOONCAKE=true
+  export ASCEND_NPU_PHY_ID=-1
+  echo "[$(date '+%F %T')] P/D transfer backend: Mooncake Ascend Direct"
+else
+  unset ENABLE_ASCEND_TRANSFER_WITH_MOONCAKE
+  unset ASCEND_NPU_PHY_ID
+  echo "[$(date '+%F %T')] P/D transfer backend: Ascend MemFabric (${ASCEND_MF_TRANSFER_PROTOCOL:-device_rdma})"
+fi
 export PYTORCH_NPU_ALLOC_CONF=${PYTORCH_NPU_ALLOC_CONF:-expandable_segments:True}
 export SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT=${SGLANG_DISAGGREGATION_BOOTSTRAP_TIMEOUT:-600}
 export SGLANG_DISAGGREGATION_WAITING_TIMEOUT=${SGLANG_DISAGGREGATION_WAITING_TIMEOUT:-600}
 
-# Do not pass --disaggregation-ib-device: Ascend Direct installs its own
-# transport and does not use the CUDA/RDMA HCA-selection path.
+# P/D backend-specific environment has been selected above. Mooncake L3 Store
+# remains independent and is configured through HiCache extra config.
 echo "[$(date '+%F %T')] Launching SGLang ${ROLE} server"
 exec python3 -u -m sglang.launch_server "$@"

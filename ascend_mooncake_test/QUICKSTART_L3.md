@@ -17,7 +17,7 @@ Decode A3（61.28.30.28）
   └─ L2 Host Cache：1GB/rank，整机约 16GB
 
 Mooncake L3总容量：32GB
-P/D KV传输：Mooncake Ascend Direct
+P/D KV传输：SGLang Ascend MemFabric（device_rdma）
 L2/L3传输：Mooncake Store TCP
 ```
 
@@ -74,6 +74,10 @@ MOONCAKE_STORE_GB=16
 MOONCAKE_STORE_PROTOCOL=tcp
 MOONCAKE_STORE_DEVICE=
 MOONCAKE_STORE_NPU_ID=0
+
+PD_TRANSFER_BACKEND=ascend
+ASCEND_MF_STORE_URL=tcp://${PREFILL_IP}:24670
+ASCEND_MF_TRANSFER_PROTOCOL=device_rdma
 
 HICACHE_L2_GB_PER_RANK=1
 HICACHE_IO_BACKEND=kernel_ascend
